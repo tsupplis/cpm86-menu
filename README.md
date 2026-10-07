@@ -65,6 +65,21 @@ E! Exit to CP/M      | EXIT
 - A sub-menu file that contains no `S!` entries is treated as exit-only
   (no `MENU` re-append on any launch path within it).
 
+### Drives and user areas
+
+- The re-launch line written to `$$$.sub` is drive-qualified:
+  `[D:]MENU D:file.dat`. The `MENU` prefix is the drive `menu.cmd` was started
+  from (e.g. `B:MENU` typed at `A>`), read from the CCP command buffer; the
+  `.dat` file gets the current drive when it has none.
+- Programs that change drive or user themselves (BDOS 14/32) are fine: the CCP
+  restores its own drive and user on warm boot before reading `$$$.sub`.
+- `$$$.sub` is created on the current drive and user, and the CCP reads it from
+  the drive and user it is on at that moment. An entry or `.sub` line that is
+  a bare drive change (`B:`) or `USER n` therefore ends the `$$$.sub` chain:
+  the remaining lines and the `MENU` re-launch are not run. Use a
+  drive-prefixed command instead (`E Prog | B:PROG`), which loads from `B:`
+  without changing the CCP's current drive.
+
 ---
 
 ## Keys

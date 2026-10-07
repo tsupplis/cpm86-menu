@@ -10,5 +10,6 @@ int sub_close(void);
 int sub_delete(void);  /* BDOS 19: delete $$$SUB if it exists */
 void sub_exit(void);       /* BDOS fn 0: warm boot, CCP picks up $$$SUB automatically */
 void p_chain(char *cmd, int submode); /* BDOS 47: chain; submode!=0 sets MDSUBE so $$$SUB runs after */
+int  sub_cmddrv(void);     /* drive (1=A..16=P) prefixing the running CCP command, 0 = none/unknown */
 
 #endif

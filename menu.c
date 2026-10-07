@@ -208,7 +208,7 @@ static void draw_screen(int sel, int has_back)
 
 static int run_submit(cmd, menucmd, remenu)
     char *cmd;
-    char *menucmd;  /* "MENU datfile" -- appended at bottom of stack for S */
+    char *menucmd;  /* "[D:]MENU D:datfile" -- appended at bottom of stack for S */
     int   remenu;   /* 1 = append menucmd (S), 0 = don't (S!)             */
 {
     FILE *fp;
@@ -314,6 +314,39 @@ static int run_submit(cmd, menucmd, remenu)
 
 /* ------------------------------------------------------------------ */
 
+/*
+ * Build the re-launch command "[D:]MENU D:datfile".
+ * cmddrv: drive MENU.CMD was run from (sub_cmddrv(), 0 = none), so that
+ *         "B:MENU" started from A> is re-launched from B.
+ * datfile gets the current drive (BDOS 25) when it has no drive, so the
+ * line is valid wherever the CCP runs it from.
+ */
+static void build_menucmd(menucmd, datfile, cmddrv)
+    char *menucmd;
+    char *datfile;
+    int   cmddrv;
+{
+    int i;
+    int j;
+
+    j = 0;
+    if (cmddrv > 0) {
+        menucmd[j++] = (char)('A' + cmddrv - 1);
+        menucmd[j++] = ':';
+    }
+    menucmd[j++]='M'; menucmd[j++]='E'; menucmd[j++]='N'; menucmd[j++]='U';
+    menucmd[j++]=' ';
+    if (datfile[0] == '\0' || datfile[1] != ':') {
+        menucmd[j++] = (char)('A' + (bdos(25, 0) & 0x0F));
+        menucmd[j++] = ':';
+    }
+    for (i = 0; datfile[i] != '\0' && i < 64; i++)
+        menucmd[j++] = datfile[i];
+    menucmd[j] = '\0';
+}
+
+/* ------------------------------------------------------------------ */
+
 int main(argc, argv)
     int argc;
     char **argv;
@@ -323,7 +356,8 @@ int main(argc, argv)
     int  c;
     int  has_back;
     char datfile[65];
-    char menucmd[70];   /* "MENU datfile" -- re-launch command */
+    char menucmd[80];   /* "[D:]MENU D:datfile" -- re-launch command */
+    int  cmddrv;
     int  type;
 
     /* initialise datfile from argv or default */
@@ -338,20 +372,10 @@ int main(argc, argv)
         datfile[6]='a'; datfile[7]='t'; datfile[8]='\0';
     }
 
+    cmddrv = sub_cmddrv();
+
 reload:
     sel = 0;
-
-    /* build "MENU datfile" re-launch command for this dat */
-    {
-        int i;
-        int j;
-        menucmd[0]='M'; menucmd[1]='E'; menucmd[2]='N'; menucmd[3]='U';
-        menucmd[4]=' ';
-        j = 5;
-        for (i = 0; datfile[i] != '\0' && j < 69; i++)
-            menucmd[j++] = datfile[i];
-        menucmd[j] = '\0';
-    }
 
     count = load_menu(items, MAX_ENTRIES, datfile);
     if (count == 0) {
@@ -421,6 +445,9 @@ reload:
                 draw_screen(sel, has_back);
                 continue;
             }
+
+            /* built here so it follows M sub-menu navigation */
+            build_menucmd(menucmd, datfile, cmddrv);
 
             /* C / C! : chain directly to program via P_CHAIN */
             if (type == MTYPE_C || type == MTYPE_CNR) {

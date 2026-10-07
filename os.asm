@@ -345,6 +345,62 @@ setsub_end:
 setsub	endp
 
 ;
+; sub_cmddrv: drive prefix of the command line the CCP is currently running,
+; i.e. the drive the running program was loaded from when typed as "B:MENU".
+; The CCP keeps the (upcased, NUL-terminated) line in CMBUFF+2 = offset 000Bh
+; of its segment while the transient runs, whether it came from the keyboard,
+; $$$.SUB or BDOS fn 47. Same guards as setsub (BDOS 22h, fn 49 implemented).
+;
+; int sub_cmddrv(void)  -- 1..16 for A..P, 0 if no prefix or unknown
+;
+	public	sub_cmddrv_
+sub_cmddrv_	proc	near
+	push	bp
+	mov	bp,sp
+	push	es
+	push	si
+	push	bx
+	push	cx
+	push	dx
+	mov	cx,0Ch			; return version number
+	int	0E0h
+	cmp	ax,22h
+	jnz	cmddrv_none
+	mov	cx,31h			; ES = CCP segment
+	int	0E0h
+	cmp	al,0FFh
+	jz	cmddrv_none
+	mov	si,0Bh			; CMBUFF+2
+	mov	cx,127
+cmddrv_skip:
+	mov	al,es:[si]
+	cmp	al,' '
+	jnz	cmddrv_chk
+	inc	si
+	loop	cmddrv_skip
+	jmp	cmddrv_none
+cmddrv_chk:
+	cmp	byte ptr es:1[si],':'
+	jnz	cmddrv_none
+	sub	al,'A'
+	cmp	al,15
+	ja	cmddrv_none		; not A..P
+	inc	al
+	xor	ah,ah
+	jmp	cmddrv_end
+cmddrv_none:
+	xor	ax,ax
+cmddrv_end:
+	pop	dx
+	pop	cx
+	pop	bx
+	pop	si
+	pop	es
+	pop	bp
+	ret
+sub_cmddrv_	endp
+
+;
 ; p_chain: BDOS fn 47 -- chain to program.
 ; MCHAIN copies a NUL-terminated command line from the current DMA
 ; address into the CCP command buffer; the CCP hot-start path does not
