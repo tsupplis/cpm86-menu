@@ -1,9 +1,7 @@
 # Menu — CP/M-86 1.1 Application Menu
 
 A lean interactive launch menu for CP/M-86 1.1 (BDOS 2.2; `menu.cmd` refuses
-to start on any other version). Reads `menu.dat`, displays a
-navigable list, and launches the chosen program via `$$$.sub` so the CCP picks
-it up on exit. 
+to start on any other version, as the submit management is radically different starting with BDOS 3.0, using real process management). Reads `menu.dat`, displays a navigable list, and launches the chosen program via `$$$.sub` so the CCP picks it up on exit. 
 It can be considered as an invented precursor to the concurrent dos batch menu but for BDOS 2.2. The foundation is the submit management by CCP.
 It is also an nice way to illustrate a solution/workaround to the lack of process management in BDOS 2.2.
 
