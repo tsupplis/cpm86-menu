@@ -21,19 +21,36 @@ This menu program is accompanied by an msub.cmd command which is a clean room re
 
 ## Usage
 
+### MENU
+
 ```
 MENU [file.dat] [/n] [/P]
 ```
 
 | Argument | Meaning |
 |---|---|
-| `file.dat` | Menu file to load (default `menu.dat`). |
-| `/n` | Start with entry `n` (1-based) selected. |
+| `file.dat` | Menu file to load (default `menu.dat`), drive prefix allowed. |
+| `/n` | Start with entry `n` (1-based) selected. Ignored (entry 1 is selected) if `n` is 0 or beyond the number of entries, e.g. after the `.dat` was edited. |
 | `/P` | Show "Press any key to return to the menu" and wait before drawing. |
 
 `/n` and `/P` are mostly written by `menu.cmd` itself in the re-launch line,
 so the menu comes back on the entry that was run and, for `EP`/`SP`/`CP`
 entries, after a key press.
+
+### MSUB
+
+```
+MSUB file[.SUB] [parm1 parm2 ...]
+```
+
+| Argument | Meaning |
+|---|---|
+| `file` | Job file, drive prefix allowed (`B:BACKUP`). `.SUB` is added when no type is given. |
+| `parm1` … `parm9` | Replace `$1` … `$9` in the file. Missing parameters expand to nothing. Each is used up to 32 characters. |
+
+With no argument MSUB prints its banner and usage and does nothing. The
+`.sub` file rules (`$$`, `^x`, `;` comments, limits) are in
+[S / S! files](#s--s-files). Behaviour inside a running job: see [MSUB](#msub).
 
 
 ## menu.dat Format

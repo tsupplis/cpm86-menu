@@ -312,7 +312,8 @@ int main(argc, argv)
                 } else if (p[1] >= '0' && p[1] <= '9') {
                     startsel = 0;
                     for (i = 1; p[i] >= '0' && p[i] <= '9'; i++)
-                        startsel = startsel * 10 + (p[i] - '0');
+                        if (startsel < 1000)    /* no int wrap-around */
+                            startsel = startsel * 10 + (p[i] - '0');
                 }
             } else {
                 for (i = 0; p[i] != '\0' && i < 64; i++)
