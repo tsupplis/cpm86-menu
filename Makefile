@@ -69,11 +69,10 @@ cpmtest.img: menu.cmd msub.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub 
 DIST_CMD  = menu.cmd msub.cmd hello.cmd
 DIST_DAT  = menu.dat menu1.dat menu2.dat soak/soak.dat
 DIST_SUB  = batch.sub nest.sub soak/soak.sub soak/soaka.sub soak/soakb.sub soak/soakm.sub
-DIST_DOC  = README.md LICENSE.md
 
 dist: msub.zip
 
-msub.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_SUB) $(DIST_DOC)
+msub.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_SUB)
 	rm -f msub.zip
 	zip -j msub.zip $^
 
