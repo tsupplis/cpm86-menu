@@ -3,7 +3,7 @@
 
 #define MAX_ENTRIES 15
 #define MAX_LABEL   70
-#define MAX_CMD     64
+#define MAX_CMD     125  /* CCP command line limit */
 #define MAX_TITLE   70
 
 /* Entry types */
@@ -17,7 +17,7 @@
 
 typedef struct {
     char label[71];
-    char cmd[65];       /* command / dat file / submit file+params */
+    char cmd[MAX_CMD + 1]; /* command / dat file / submit file+params */
     int  type;          /* MTYPE_*                                  */
 } MenuItem;
 

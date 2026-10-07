@@ -5,8 +5,12 @@
  * Byte  0   : drive (0 = default)
  * Bytes 1-8 : filename, space-padded
  * Bytes 9-11: extension
- * Bytes 12-31: reserved (zeroed)
+ * Byte  12  : extent, 14: s2 (bit 7 = not modified), 15: record count (rc)
+ * Bytes 16-31: allocation map
  * Byte 32   : current record (cr), auto-advanced by BDOS 21
+ *
+ * $$$.SUB is a stack read by the CCP from the last record down, inside
+ * extent 0 only, so it holds at most 128 records.
  */
 static char _fcb[33] = {
     0,                                  /* drive: default */
@@ -17,24 +21,42 @@ static char _fcb[33] = {
 };
 
 static char _buf[128]; /* sector work buffer */
+static int  _created;  /* 1 = file made by sub_open, 0 = existing file    */
+static int  _base;     /* record count before sub_open (rollback point)  */
+
+/* clear everything after the name so open/make start from extent 0 */
+static void fcb_reset(void)
+{
+    int i;
+    for (i = 12; i < 33; i++)
+        _fcb[i] = 0;
+}
 
 int sub_open(int flags)
 {
-    int i;
+    _created = 0;
+    _base    = 0;
+    fcb_reset();
 
-    if (flags == SUB_APPEND)
-        return -1;  /* stub: not implemented in v1 */
-
-    /* reset FCB current-record counter */
-    _fcb[32] = 0;
+    if (flags == SUB_APPEND) {
+        /* BDOS 15: open; push on top of the records already there */
+        if ((bdos(15, _fcb) & 0xFF) != 0xFF) {
+            _base = _fcb[15] & 0xFF;
+            _fcb[32] = (char)_base;
+            return 0;
+        }
+        fcb_reset();
+    }
 
     /* BDOS 19: delete (ignore error -- file may not exist) */
     bdos(19, _fcb);
+    fcb_reset();
 
     /* BDOS 22: make (create) */
     if ((bdos(22, _fcb) & 0xFF) == 0xFF)
         return -1;
 
+    _created = 1;
     return 0;
 }
 
@@ -43,6 +65,10 @@ int sub_append(char *cmd)
     int i;
     int len;
     char c;
+
+    /* the CCP only reads extent 0: 128 records */
+    if ((_fcb[32] & 0xFF) >= 128 || _fcb[12] != 0)
+        return -1;
 
     /* zero the sector buffer */
     for (i = 0; i < 128; i++)
@@ -82,9 +108,28 @@ int sub_close(void)
     return 0;
 }
 
+int sub_abort(void)
+{
+    if (_created) {
+        bdos(16, _fcb);
+        bdos(19, _fcb);
+        return 0;
+    }
+
+    /* drop what was pushed: same as a CCP pop -- lower rc, clear the
+       "not modified" flag so close rewrites the directory entry */
+    _fcb[15] = (char)_base;
+    _fcb[14] = 0;
+    if ((bdos(16, _fcb) & 0xFF) == 0xFF)
+        return -1;
+
+    return 0;
+}
+
 int sub_delete(void)
 {
     /* BDOS 19: delete -- ignore error if file does not exist */
+    fcb_reset();
     bdos(19, _fcb);
     return 0;
 }

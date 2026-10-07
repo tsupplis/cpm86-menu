@@ -413,6 +413,7 @@ int main(argc, argv)
     char datfile[65];
     char menucmd[80];   /* "[D:]MENU D:datfile" -- re-launch command */
     int  cmddrv;
+    int  subact;        /* started from $$$.SUB: 1 yes, 0 no, -1 unknown */
     int  type;
 
     /* $$$.SUB hand-over relies on the CP/M-86 1.1 (BDOS 2.2) CCP */
@@ -434,6 +435,7 @@ int main(argc, argv)
     }
 
     cmddrv = sub_cmddrv();
+    subact = sub_active();
 
 reload:
     sel = 0;
@@ -513,6 +515,7 @@ reload:
                 int n;
                 int i;
                 int bad;
+                int opened;
 
                 /* E, S and C re-launch MENU, except in an exit-only
                    sub-menu: a .dat with an M! directive and no S! entry */
@@ -533,31 +536,34 @@ reload:
                 build_menucmd(menucmd, datfile, cmddrv);
 
                 if ((type == MTYPE_C || type == MTYPE_CNR) && !remenu) {
-                    /* chain clean: no stale $$$.SUB, MDSUBE not set */
-                    sub_delete();
+                    /* chain without coming back: inside a SUBMIT job the
+                       rest of the job runs after it, otherwise drop any
+                       stale $$$.SUB and leave MDSUBE alone */
+                    if (subact != 1)
+                        sub_delete();
                     clrscr();
                     cursor(CURSOR_ON);
-                    p_chain(items[sel].cmd, 0);  /* no return on success */
+                    p_chain(items[sel].cmd, subact == 1); /* no return */
                     return 0;
                 }
 
-                /* records are a stack: first written = bottom = runs last */
-                bad = (sub_open(SUB_CREATE) != 0);
-                if (!bad) {
-                    if (remenu)
-                        bad = (sub_append(menucmd) != 0);
-                    if (type == MTYPE_S || type == MTYPE_SNR) {
-                        for (i = n - 1; i >= 0 && !bad; i--)
-                            bad = (sub_append(sub_lines[i]) != 0);
-                    } else if (type == MTYPE_E || type == MTYPE_ENR) {
-                        if (!bad)
-                            bad = (sub_append(items[sel].cmd) != 0);
-                    }
-                    if (sub_close() != 0)
-                        bad = 1;
+                /* records are a stack: first written = bottom = runs last.
+                   Inside a SUBMIT job push on top of what is left of it. */
+                opened = (sub_open(subact == 1 ? SUB_APPEND : SUB_CREATE) == 0);
+                bad = !opened;
+                if (!bad && remenu)
+                    bad = (sub_append(menucmd) != 0);
+                if (!bad && (type == MTYPE_S || type == MTYPE_SNR)) {
+                    for (i = n - 1; i >= 0 && !bad; i--)
+                        bad = (sub_append(sub_lines[i]) != 0);
+                } else if (!bad && (type == MTYPE_E || type == MTYPE_ENR)) {
+                    bad = (sub_append(items[sel].cmd) != 0);
                 }
+                if (!bad)
+                    bad = (sub_close() != 0);
                 if (bad) {
-                    sub_delete();
+                    if (opened)
+                        sub_abort();     /* outer job left as it was */
                     menu_error("Cannot write $$$.SUB", (char *)0, sel, has_back);
                     continue;
                 }
@@ -572,7 +578,9 @@ reload:
             }
 
         } else if ((c == 'q' || c == 'Q') && !menu_quit_disabled) {
-            sub_delete();
+            /* inside a SUBMIT job the CCP carries on with the rest of it */
+            if (subact != 1)
+                sub_delete();
             clrscr();
             cursor(CURSOR_ON);
             return 0;

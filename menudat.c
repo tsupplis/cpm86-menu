@@ -54,7 +54,7 @@ int load_menu(items, max, filename)
     char *filename;
 {
     FILE *fp;
-    char  buf[160];
+    char  buf[256];
     char *p;
     char *pipe;
     char *label;
@@ -133,6 +133,14 @@ int load_menu(items, max, filename)
 
         if (*label == '\0' || *cmd == '\0')
             continue;   /* empty label or cmd -- skip */
+
+        /* a cut command would run something else -- skip it */
+        {
+            int n;
+            for (n = 0; cmd[n] != '\0'; n++) ;
+            if (n > MAX_CMD)
+                continue;
+        }
 
         if (count >= max)
             break;      /* array full */

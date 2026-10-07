@@ -60,7 +60,7 @@ int getch()
     }
     while(!(c=bdos(6,255))) 
         continue;
-    while(s<GETCH_BUFLEN && (d=bdos(6,255))) {
+    while(getch_buffer!=0 && s<GETCH_BUFLEN && (d=bdos(6,255))) {
         if(1) { 
             getch_buffer[(o+s)%GETCH_BUFLEN]=d;
             s++;

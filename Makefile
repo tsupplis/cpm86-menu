@@ -47,12 +47,13 @@ os.o: os.asm
 # --------------------------------------------------------------------
 # Test image
 # --------------------------------------------------------------------
-cpmtest.img: menu.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub
+cpmtest.img: menu.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub
 	cp cpmbase.img cpmtest.img
 	cpmcp -f ibmpc-514ss cpmtest.img menu.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img hello.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img *.dat 0:
 	cpmcp -f ibmpc-514ss cpmtest.img batch.sub 0:
+	cpmcp -f ibmpc-514ss cpmtest.img nest.sub 0:
 	cpmls -F -f ibmpc-514ss cpmtest.img 
 
 # --------------------------------------------------------------------

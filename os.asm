@@ -141,12 +141,14 @@ delay_	proc	near
 delay_bios:
         mov     ah, 00h
         int     01Ah
-        add     dx, word ptr 4[bp]
-        mov     bx, dx
+        mov     bx, dx                  ; start tick (low word)
 delay_lp:
+        mov     ah, 00h
         int     01Ah
-        cmp     dx, bx
-        jl      delay_lp
+        mov     ax, dx
+        sub     ax, bx                  ; elapsed ticks, wraps modulo 64K
+        cmp     ax, word ptr 4[bp]
+        jb      delay_lp
 delay_end:
         pop     dx
         pop     cx
@@ -375,6 +377,39 @@ setsub	proc	near
 setsub_end:
 	ret
 setsub	endp
+
+;
+; sub_active: is the CCP in submit mode (MDSUBE != 0)? True when this
+; program was started from a $$$.SUB line; then the records still in
+; $$$.SUB are the rest of an outer job and must be kept. When started
+; from the keyboard the CCP has already cleared MDSUBE (DELSUB), so any
+; $$$.SUB still around is stale.
+;
+; int sub_active(void)  -- 1 = on, 0 = off, -1 = unknown (ccpseg failed)
+;
+	public	sub_active_
+sub_active_	proc	near
+	push	bp
+	mov	bp,sp
+	push	es
+	push	bx
+	push	cx
+	push	dx
+	call	ccpseg
+	mov	ax,-1
+	jc	active_end
+	xor	ax,ax
+	cmp	byte ptr es:[0805h],0	; MDSUBE
+	jz	active_end
+	inc	ax
+active_end:
+	pop	dx
+	pop	cx
+	pop	bx
+	pop	es
+	pop	bp
+	ret
+sub_active_	endp
 
 ;
 ; sub_cmddrv: drive prefix of the command line the CCP is currently running,
