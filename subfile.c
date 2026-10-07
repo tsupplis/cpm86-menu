@@ -18,6 +18,42 @@
  * The whole file is read and checked before anything is written, so a
  * caller can report errors without touching $$$.SUB.
  */
+/*
+ * sub_readln: read one text line from fp into buf (size includes the NUL).
+ * A line ends with CR LF, LF or CR alone; ^Z or end of file ends the text.
+ * Returns the line length, SUB_RD_EOF when there is no more text, or
+ * SUB_RD_LONG when the line did not fit (rest of it skipped, buf holds the
+ * start).
+ */
+int sub_readln(fp, buf, size)
+    FILE *fp;
+    char *buf;
+    int   size;
+{
+    int c;
+    int n;
+    int over;
+
+    n = 0;
+    over = 0;
+    c = getc(fp);
+    if (c == EOF || c == 0x1A)
+        return SUB_RD_EOF;
+    while (c != EOF && c != 0x1A && c != '\r' && c != '\n') {
+        if (n < size - 1) buf[n++] = (char)c; else over = 1;
+        c = getc(fp);
+    }
+    if (c == '\r') {
+        c = getc(fp);               /* CR LF counts as one line end */
+        if (c != '\n' && c != EOF)
+            ungetc(c, fp);
+    } else if (c == 0x1A) {
+        ungetc(c, fp);              /* next call reports the end */
+    }
+    buf[n] = '\0';
+    return over ? SUB_RD_LONG : n;
+}
+
 static char sub_lines[SUB_MAX_LINES][SUB_LINE_LEN];
 static char sub_fname[16];  /* d:filename.typ + NUL */
 static int  sub_nlines;     /* lines loaded by the last sub_load       */
@@ -85,12 +121,9 @@ int sub_load(cmd)
 
     nlines = 0;
     err = 0;
-    while (fgets(buf, sizeof(buf), fp) != 0) {
+    while ((i = sub_readln(fp, buf, sizeof(buf))) != SUB_RD_EOF) {
         sub_srcline++;
-        /* strip \r\n; a line without \n that filled buf is too long */
-        for (q = buf; *q != '\0' && *q != '\r' && *q != '\n'; q++) ;
-        if (*q == '\0' && q - buf == sizeof(buf) - 1) { err = SUBERR_LONG; break; }
-        *q = '\0';
+        if (i == SUB_RD_LONG) { err = SUBERR_LONG; break; }
 
         q = buf;
         while (*q == ' ' || *q == '\t') q++;

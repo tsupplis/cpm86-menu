@@ -34,4 +34,9 @@ int   sub_errline(void);     /* source line of the last error, 0 = none         
 char *sub_errmsg(int err);   /* message for a SUBERR_* code (name to follow)      */
 int   sub_pushall(void);     /* push loaded lines on open $$$SUB, last first      */
 
+/* text line reader shared with menudat.c: CR LF, LF or CR line ends, ^Z */
+#define SUB_RD_EOF   -1      /* no more text                               */
+#define SUB_RD_LONG  -2      /* line longer than the buffer (rest skipped) */
+int   sub_readln();          /* (FILE *fp, char *buf, int size): length or SUB_RD_* */
+
 #endif

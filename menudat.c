@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "menudat.h"
+#include "sub.h"
 
 /* Definitions for the globals declared extern in menudat.h */
 static char default_title[]       = "CP/M-86 application menu version 1.0";
@@ -62,6 +63,7 @@ int load_menu(items, max, filename)
     int   count;
     int   type;
     int   pause;
+    int   len;
 
     /* Reset globals for this load */
     menu_quit_disabled = 0;
@@ -74,12 +76,10 @@ int load_menu(items, max, filename)
         return 0;
 
     count = 0;
-    while (fgets(buf, sizeof(buf), fp) != 0) {
-
-        /* strip trailing \r and \n */
-        for (p = buf; *p != '\0'; p++) {
-            if (*p == '\r' || *p == '\n') { *p = '\0'; break; }
-        }
+    /* CR LF, LF or CR line ends; a line too long for buf is skipped */
+    while ((len = sub_readln(fp, buf, sizeof(buf))) != SUB_RD_EOF) {
+        if (len == SUB_RD_LONG)
+            continue;
 
         /* skip blank lines and ; comments */
         p = ltrim(buf);

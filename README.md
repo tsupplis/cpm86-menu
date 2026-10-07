@@ -56,7 +56,8 @@ With no argument MSUB prints its banner and usage and does nothing. The
 ## menu.dat Format
 
 Each line is a **directive**. Lines starting with `;` are comments; blank lines
-are ignored. Leading and trailing whitespace around labels and commands is trimmed.
+are ignored. Lines may end with CR LF, LF or CR alone (mixed is fine), and
+reading stops at `^Z`. A line longer than 255 characters is skipped. Leading and trailing whitespace around labels and commands is trimmed.
 Maximum 15 entries per file.
 
 ### Directives
@@ -145,7 +146,8 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
   ```
 - Limits: 125 chars per expanded line, 64 lines per file. Exceeding either is
   reported as an error rather than truncated.
-- Reading stops at the first `^Z` (CP/M end of text). `.sub` files made on a
+- Lines may end with CR LF, LF or CR alone. Reading stops at the first `^Z`
+  (CP/M end of text). `.sub` files made on a
   host and copied with `cpmcp` should end with `^Z` if DR `SUBMIT.CMD` will
   also read them: `SUBMIT` reads the whole last record, including any junk
   after the text. `menu.cmd` does not need the `^Z` itself.
@@ -269,6 +271,7 @@ Reusable CP/M-86 library for writing `$$$.sub` submit files.
 | `sub_name` | `char *sub_name(void)` | File actually opened, e.g. `B:BACKUP.SUB`. |
 | `sub_errmsg` | `char *sub_errmsg(int err)` | Message for a `SUBERR_*` code; the file name follows it. |
 | `sub_errline` | `int sub_errline(void)` | Source line of the last error, 0 if none. |
+| `sub_readln` | `int sub_readln(FILE *fp, char *buf, int size)` | Read one text line (CR LF, LF or CR end, stops at `^Z`). Returns its length, `SUB_RD_EOF`, or `SUB_RD_LONG` if it did not fit. Also used for `.dat` files. |
 
 Typical use (this is all of `MSUB`):
 
