@@ -322,23 +322,55 @@ xst_exit:
 xstatline_  endp
 
 ;
-; setsub: set the CCP submit-mode flag MDSUBE so that the warm-boot path
-; (WBOOT -> CCPHOT, which does not re-run BDOS fn 13) processes $$$.SUB.
-; MDSUBE lives at offset 0805h of the CCP segment, which on CP/M-86 1.1
-; is the single CCP/BDOS/BIOS load segment (e.g. 0051h), NOT segment 0.
-; BDOS fn 49 returns with ES = that segment. Only done for BDOS 22h, and
-; skipped if fn 49 returns 0FFh (not implemented, e.g. under emu2).
+; ccpseg: locate the CP/M-86 1.1 CCP and check it is the layout we expect.
+; Returns CF clear and ES = CCP segment, or CF set (do not touch the CCP).
+;  - BDOS fn 12 must return 22h (CP/M-86 1.1).
+;  - BDOS fn 49 returns ES = CCP/BDOS/BIOS load segment; 0FFh = not
+;    implemented (e.g. emu2).
+;  - Signature in the CCP data area (labels MENUSIG/SUBNAM in ccp.a86,
+;    ccpexp.a86, ccpnew.a86): 'CMD' at 0800h and '$$$' at 0807h (bit 7
+;    masked, the BDOS can set attribute bits there). Only when it matches
+;    are MDSUBE (0805h) and CMBUFF (0009h) where we think they are.
 ; Clobbers AX,BX,CX,DX,ES.
 ;
-setsub	proc	near
+ccpseg	proc	near
 	mov	cx,0Ch			; return version number
 	int	0E0h
 	cmp	ax,22h
-	jnz	setsub_end
+	jnz	ccpseg_no
 	mov	cx,31h			; get system data address -> ES = CCP seg
 	int	0E0h
-	cmp	al,0FFh			; not implemented (e.g. emu2): ES invalid
-	jz	setsub_end
+	cmp	al,0FFh
+	jz	ccpseg_no
+	cmp	word ptr es:[0800h],4D43h	; 'C','M'
+	jnz	ccpseg_no
+	cmp	byte ptr es:[0802h],44h		; 'D'
+	jnz	ccpseg_no
+	mov	bx,0807h
+ccpseg_sub:
+	mov	al,es:[bx]
+	and	al,7Fh
+	cmp	al,24h				; '$'
+	jnz	ccpseg_no
+	inc	bx
+	cmp	bx,080Ah
+	jb	ccpseg_sub
+	clc
+	ret
+ccpseg_no:
+	stc
+	ret
+ccpseg	endp
+
+;
+; setsub: set the CCP submit-mode flag MDSUBE (CCP offset 0805h) so that
+; the warm-boot path (WBOOT -> CCPHOT, which does not re-run BDOS fn 13)
+; processes $$$.SUB. Does nothing unless ccpseg recognises the CCP.
+; Clobbers AX,BX,CX,DX,ES.
+;
+setsub	proc	near
+	call	ccpseg
+	jc	setsub_end
 	mov	byte ptr es:[0805h],0FFh ; MDSUBE
 setsub_end:
 	ret
@@ -349,7 +381,7 @@ setsub	endp
 ; i.e. the drive the running program was loaded from when typed as "B:MENU".
 ; The CCP keeps the (upcased, NUL-terminated) line in CMBUFF+2 = offset 000Bh
 ; of its segment while the transient runs, whether it came from the keyboard,
-; $$$.SUB or BDOS fn 47. Same guards as setsub (BDOS 22h, fn 49 implemented).
+; $$$.SUB or BDOS fn 47. Same guards as setsub (ccpseg).
 ;
 ; int sub_cmddrv(void)  -- 1..16 for A..P, 0 if no prefix or unknown
 ;
@@ -362,14 +394,8 @@ sub_cmddrv_	proc	near
 	push	bx
 	push	cx
 	push	dx
-	mov	cx,0Ch			; return version number
-	int	0E0h
-	cmp	ax,22h
-	jnz	cmddrv_none
-	mov	cx,31h			; ES = CCP segment
-	int	0E0h
-	cmp	al,0FFh
-	jz	cmddrv_none
+	call	ccpseg
+	jc	cmddrv_none
 	mov	si,0Bh			; CMBUFF+2
 	mov	cx,127
 cmddrv_skip:

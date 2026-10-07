@@ -27,6 +27,8 @@ typedef struct {
  * menu_title        : from T line; default if no T line found.
  * menu_quit_disabled: 1 if Q! line present, 0 otherwise.
  * menu_has_snr      : 1 if at least one S! entry found, 0 otherwise.
+ *                     A .dat with an M! directive and no S! entry is an
+ *                     exit-only sub-menu: E/S/C do not re-launch MENU.
  * menu_back         : filename set by M! directive; empty string if absent.
  *                     If non-empty, the B key is shown and returns to this dat.
  */

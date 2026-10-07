@@ -2,7 +2,8 @@
 #include "menudat.h"
 
 /* Definitions for the globals declared extern in menudat.h */
-char menu_title[MAX_TITLE + 1]    = "CP/M-86 application menu version 1.0";
+static char default_title[]       = "CP/M-86 application menu version 1.0";
+char menu_title[MAX_TITLE + 1];
 int  menu_quit_disabled           = 0;
 int  menu_has_snr                 = 0;
 char menu_back[MAX_CMD + 1]       = "";
@@ -65,7 +66,7 @@ int load_menu(items, max, filename)
     menu_quit_disabled = 0;
     menu_has_snr       = 0;
     menu_back[0]       = '\0';
-    /* menu_title keeps its current value until a T line overrides it */
+    scopy(menu_title, default_title, MAX_TITLE);
 
     fp = fopen(filename, "r");
     if (fp == 0)

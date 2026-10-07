@@ -194,122 +194,163 @@ static void draw_screen(int sel, int has_back)
 
 /* ------------------------------------------------------------------ */
 /*
- * run_submit: read a .sub file, substitute $1..$9 from params[], and
- * append each resulting command to $$$.sub in reverse order (last line
- * first so the CCP executes them top-down).
+ * read_submit: read a .sub file and expand it into sub_lines[] using the
+ * DR SUBMIT rules: $1..$9 = parameters (missing = empty), $$ = '$',
+ * ^A..^Z = control character, leading blanks skipped, trailing blanks
+ * trimmed, blank lines dropped. Lines are upcased like SUBMIT/CCP do.
  *
- * cmd format: "FILENAME [param1 [param2 ...]]"
- * The .sub file is opened as "FILENAME.SUB".
+ * cmd format: "[D:]FILENAME[.TYP] [param1 [param2 ...]]"
+ * ".SUB" is added when the name has no type.
  *
- * Returns number of lines appended, or 0 on error.
+ * Returns the number of lines (>0) or one of the SUBERR_* codes.
+ * Read before $$$.SUB is created so errors leave the menu running.
  */
-#define SUB_MAX_LINES  32
-#define SUB_LINE_LEN   (MAX_CMD + 1)
+#define SUB_MAX_LINES  64    /* $$$.SUB lives in one extent: 128 records */
+#define SUB_LINE_LEN   126   /* CCP limit: 125 chars + NUL               */
+#define SUB_PARAM_LEN  32
 
-static int run_submit(cmd, menucmd, remenu)
+#define SUBERR_EMPTY    0
+#define SUBERR_OPEN    -1
+#define SUBERR_LONG    -2
+#define SUBERR_LINES   -3
+#define SUBERR_CTRL    -4
+
+static char sub_lines[SUB_MAX_LINES][SUB_LINE_LEN];
+static char sub_fname[16];  /* d:filename.typ + NUL */
+
+static int read_submit(cmd)
     char *cmd;
-    char *menucmd;  /* "[D:]MENU D:datfile" -- appended at bottom of stack for S */
-    int   remenu;   /* 1 = append menucmd (S), 0 = don't (S!)             */
 {
     FILE *fp;
-    char  fname[13];        /* 8.3 + NUL                  */
-    char  params[10][13];   /* $1..$9, each up to 12 chars */
+    char  params[9][SUB_PARAM_LEN + 1];
     int   nparams;
-    char  lines[SUB_MAX_LINES][SUB_LINE_LEN];
     int   nlines;
-    char  buf[160];
-    char  out[SUB_LINE_LEN];
+    char  buf[256];
+    char *out;
     char *p;
     char *q;
+    char *s;
     int   i;
     int   j;
-    int   n;
+    int   base;
     int   pn;
+    int   err;
 
-    /* --- split cmd into filename and params --- */
+    /* --- file name: whole token, extra characters ignored --- */
     p = cmd;
+    while (*p == ' ' || *p == '\t') p++;
     i = 0;
-    while (*p != '\0' && *p != ' ' && *p != '\t' && i < 12)
-        fname[i++] = *p++;
-    /* append .SUB extension */
-    fname[i] = '\0';
-    /* add .SUB if no dot present */
+    while (*p != '\0' && *p != ' ' && *p != '\t') {
+        if (i < 14) {
+            sub_fname[i] = *p;
+            if (*p >= 'a' && *p <= 'z') sub_fname[i] = *p - 'a' + 'A';
+            i++;
+        }
+        p++;
+    }
+    sub_fname[i] = '\0';
+    base = (i >= 2 && sub_fname[1] == ':') ? 2 : 0;
     {
         int hasdot = 0;
-        for (j = 0; j < i; j++) if (fname[j] == '.') { hasdot = 1; break; }
-        if (!hasdot && i <= 8) {
-            fname[i]='.'; fname[i+1]='S'; fname[i+2]='U'; fname[i+3]='B';
-            fname[i+4]='\0';
+        for (j = base; j < i; j++) if (sub_fname[j] == '.') { hasdot = 1; break; }
+        if (!hasdot && i - base <= 8) {
+            sub_fname[i]='.'; sub_fname[i+1]='S'; sub_fname[i+2]='U';
+            sub_fname[i+3]='B'; sub_fname[i+4]='\0';
         }
     }
 
-    /* collect params $1..$9 */
+    /* --- parameters $1..$9: whole tokens, extra characters ignored --- */
     nparams = 0;
     while (*p != '\0' && nparams < 9) {
         while (*p == ' ' || *p == '\t') p++;
         if (*p == '\0') break;
         j = 0;
-        while (*p != '\0' && *p != ' ' && *p != '\t' && j < 12)
-            params[nparams][j++] = *p++;
+        while (*p != '\0' && *p != ' ' && *p != '\t') {
+            if (j < SUB_PARAM_LEN) params[nparams][j++] = *p;
+            p++;
+        }
         params[nparams][j] = '\0';
         nparams++;
     }
 
-    /* --- open and read .sub file --- */
-    fp = fopen(fname, "r");
-    if (fp == 0) return 0;
+    fp = fopen(sub_fname, "r");
+    if (fp == 0) return SUBERR_OPEN;
 
     nlines = 0;
-    while (nlines < SUB_MAX_LINES && fgets(buf, sizeof(buf), fp) != 0) {
-        /* strip \r\n */
-        for (q = buf; *q != '\0'; q++)
-            if (*q == '\r' || *q == '\n') { *q = '\0'; break; }
+    err = 0;
+    while (fgets(buf, sizeof(buf), fp) != 0) {
+        /* strip \r\n; a line without \n that filled buf is too long */
+        for (q = buf; *q != '\0' && *q != '\r' && *q != '\n'; q++) ;
+        if (*q == '\0' && q - buf == sizeof(buf) - 1) { err = SUBERR_LONG; break; }
+        *q = '\0';
 
-        /* skip blank and ; lines */
         q = buf;
         while (*q == ' ' || *q == '\t') q++;
         if (*q == '\0' || *q == ';') continue;
 
-        /* substitute $1..$9 into out[] */
-        i = 0; j = 0;
-        while (q[i] != '\0' && j < MAX_CMD) {
-            if (q[i] == '$' && q[i+1] >= '1' && q[i+1] <= '9') {
-                pn = q[i+1] - '1';  /* 0-based index */
+        if (nlines >= SUB_MAX_LINES) { err = SUBERR_LINES; break; }
+        out = sub_lines[nlines];
+
+        /* expand into out[] */
+        j = 0;
+        while (*q != '\0' && err == 0) {
+            if (q[0] == '$' && q[1] == '$') {
+                if (j < SUB_LINE_LEN - 1) out[j++] = '$'; else err = SUBERR_LONG;
+                q += 2;
+            } else if (q[0] == '$' && q[1] >= '1' && q[1] <= '9') {
+                pn = q[1] - '1';
                 if (pn < nparams) {
-                    char *s = params[pn];
-                    while (*s != '\0' && j < MAX_CMD)
-                        out[j++] = *s++;
+                    for (s = params[pn]; *s != '\0'; s++) {
+                        if (j < SUB_LINE_LEN - 1) out[j++] = *s;
+                        else { err = SUBERR_LONG; break; }
+                    }
                 }
-                i += 2;
+                q += 2;
+            } else if (q[0] == '^') {
+                char c = q[1];
+                if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
+                if (c < 'A' || c > 'Z') { err = SUBERR_CTRL; break; }
+                if (j < SUB_LINE_LEN - 1) out[j++] = (char)(c - 'A' + 1); else err = SUBERR_LONG;
+                q += 2;
             } else {
-                out[j++] = q[i++];
+                if (j < SUB_LINE_LEN - 1) out[j++] = *q; else err = SUBERR_LONG;
+                q++;
             }
         }
+        if (err != 0) break;
+
+        /* trim trailing blanks, drop lines left empty */
+        while (j > 0 && (out[j-1] == ' ' || out[j-1] == '\t')) j--;
         out[j] = '\0';
-        if (j == 0) continue;  /* skip empty result lines */
+        if (j == 0) continue;
 
-        /* upcase */
-        for (n = 0; out[n] != '\0'; n++)
-            if (out[n] >= 'a' && out[n] <= 'z') out[n] = out[n] - 'a' + 'A';
-
-        /* store */
-        for (n = 0; out[n] != '\0' && n < MAX_CMD; n++)
-            lines[nlines][n] = out[n];
-        lines[nlines][n] = '\0';
+        for (i = 0; i < j; i++)
+            if (out[i] >= 'a' && out[i] <= 'z') out[i] = out[i] - 'a' + 'A';
         nlines++;
     }
     fclose(fp);
 
-    if (nlines == 0) return 0;
-
-    /* --- append to $$$.sub in reverse order --- */
-    if (remenu)
-        sub_append(menucmd);        /* bottom of stack -- runs last */
-
-    for (i = nlines - 1; i >= 0; i--)
-        sub_append(lines[i]);       /* last line first = top of stack */
-
+    if (err != 0) return err;
     return nlines;
+}
+
+/* ------------------------------------------------------------------ */
+/* Show an error on the footer row, wait for a key, redraw the menu.    */
+static void menu_error(msg, arg, sel, has_back)
+    char *msg;
+    char *arg;
+    int   sel;
+    int   has_back;
+{
+    draw_screen(sel, has_back);
+    gotoxy(FOOTER_ROW, 0);
+    clreol();
+    cputs(" ");
+    cputs(msg);
+    if (arg != 0) cputs(arg);
+    cputs(" -- press a key");
+    getch();
+    draw_screen(sel, has_back);
 }
 
 /* ------------------------------------------------------------------ */
@@ -347,6 +388,20 @@ static void build_menucmd(menucmd, datfile, cmddrv)
 
 /* ------------------------------------------------------------------ */
 
+static char *sub_errmsg(n)
+    int n;
+{
+    switch (n) {
+    case SUBERR_OPEN:  return "Cannot open ";
+    case SUBERR_LONG:  return "Line over 125 chars in ";
+    case SUBERR_LINES: return "Too many lines in ";
+    case SUBERR_CTRL:  return "Bad ^ control char in ";
+    }
+    return "No commands in ";
+}
+
+/* ------------------------------------------------------------------ */
+
 int main(argc, argv)
     int argc;
     char **argv;
@@ -359,6 +414,12 @@ int main(argc, argv)
     char menucmd[80];   /* "[D:]MENU D:datfile" -- re-launch command */
     int  cmddrv;
     int  type;
+
+    /* $$$.SUB hand-over relies on the CP/M-86 1.1 (BDOS 2.2) CCP */
+    if ((bdos(12, 0) & 0xFF) != 0x22) {
+        cputs("CP/M-86 1.1 required\r\n");
+        return 1;
+    }
 
     /* initialise datfile from argv or default */
     if (argc > 1) {
@@ -446,46 +507,69 @@ reload:
                 continue;
             }
 
-            /* built here so it follows M sub-menu navigation */
-            build_menucmd(menucmd, datfile, cmddrv);
+            /* E / E! / S / S! / C / C! : hand over to the CCP via $$$.SUB */
+            {
+                int remenu;
+                int n;
+                int i;
+                int bad;
 
-            /* C / C! : chain directly to program via P_CHAIN */
-            if (type == MTYPE_C || type == MTYPE_CNR) {
+                /* E, S and C re-launch MENU, except in an exit-only
+                   sub-menu: a .dat with an M! directive and no S! entry */
+                remenu = (type == MTYPE_E || type == MTYPE_S || type == MTYPE_C)
+                         && !(has_back && !menu_has_snr);
+
+                /* read and check the .sub file before touching $$$.SUB */
+                n = 0;
+                if (type == MTYPE_S || type == MTYPE_SNR) {
+                    n = read_submit(items[sel].cmd);
+                    if (n <= 0) {
+                        menu_error(sub_errmsg(n), sub_fname, sel, has_back);
+                        continue;
+                    }
+                }
+
+                /* built here so it follows M sub-menu navigation */
+                build_menucmd(menucmd, datfile, cmddrv);
+
+                if ((type == MTYPE_C || type == MTYPE_CNR) && !remenu) {
+                    /* chain clean: no stale $$$.SUB, MDSUBE not set */
+                    sub_delete();
+                    clrscr();
+                    cursor(CURSOR_ON);
+                    p_chain(items[sel].cmd, 0);  /* no return on success */
+                    return 0;
+                }
+
+                /* records are a stack: first written = bottom = runs last */
+                bad = (sub_open(SUB_CREATE) != 0);
+                if (!bad) {
+                    if (remenu)
+                        bad = (sub_append(menucmd) != 0);
+                    if (type == MTYPE_S || type == MTYPE_SNR) {
+                        for (i = n - 1; i >= 0 && !bad; i--)
+                            bad = (sub_append(sub_lines[i]) != 0);
+                    } else if (type == MTYPE_E || type == MTYPE_ENR) {
+                        if (!bad)
+                            bad = (sub_append(items[sel].cmd) != 0);
+                    }
+                    if (sub_close() != 0)
+                        bad = 1;
+                }
+                if (bad) {
+                    sub_delete();
+                    menu_error("Cannot write $$$.SUB", (char *)0, sel, has_back);
+                    continue;
+                }
+
                 clrscr();
                 cursor(CURSOR_ON);
-                if (type == MTYPE_C) {
-                    /* write MENU datfile into $$$.sub then chain;
-                       CCP picks up $$$SUB automatically on next warm boot */
-                    sub_open(SUB_CREATE);
-                    sub_append(menucmd);
-                    sub_close();
-                } else {
-                    /* C! : delete any stale $$$.sub, then chain clean */
-                    sub_delete();
-                }
-                p_chain(items[sel].cmd, type == MTYPE_C); /* no return on success */
-                return 0;                 /* failure fallback */
+                if (type == MTYPE_C)
+                    p_chain(items[sel].cmd, 1);  /* no return on success */
+                else
+                    sub_exit();                  /* MDSUBE + BDOS 0, no return */
+                return 0;
             }
-
-            /* E / E! / S / S! : write $$$.sub and exit via BDOS 0 */
-            clrscr();
-            cursor(CURSOR_ON);
-            sub_open(SUB_CREATE);
-
-            if (type == MTYPE_S || type == MTYPE_SNR) {
-                /* read .sub file, substitute params, append lines reversed */
-                run_submit(items[sel].cmd, menucmd,
-                           type == MTYPE_S ? 1 : 0);
-            } else {
-                /* E / E! : single command */
-                if (type == MTYPE_E)
-                    sub_append(menucmd);  /* bottom of stack -- runs last */
-                sub_append(items[sel].cmd);
-            }
-
-            sub_close();
-            sub_exit();   /* set MDSUBE, BDOS 0 -- does not return */
-            return 0;     /* unreachable, keeps compiler happy */
 
         } else if ((c == 'q' || c == 'Q') && !menu_quit_disabled) {
             sub_delete();
