@@ -11,7 +11,7 @@ CFLAGS = -I. +F +0
 # --------------------------------------------------------------------
 # Top-level targets
 # --------------------------------------------------------------------
-all: menu.cmd hello.cmd
+all: menu.cmd msub.cmd hello.cmd
 
 # --------------------------------------------------------------------
 # Libraries
@@ -20,15 +20,18 @@ util.lib: conio.o os.o
 	rm -f util.lib
 	$(LIB) util.lib conio.o os.o
 
-sub.lib: sub.o
+sub.lib: sub.o subfile.o
 	rm -f sub.lib
-	$(LIB) sub.lib sub.o
+	$(LIB) sub.lib sub.o subfile.o
 
 # --------------------------------------------------------------------
 # Link targets
 # --------------------------------------------------------------------
 menu.cmd: menu.o menudat.o util.lib sub.lib
 	$(LD) -o $@ menu.o menudat.o util.lib sub.lib $(LDFLAGS)
+
+msub.cmd: msub.o util.lib sub.lib
+	$(LD) -o $@ msub.o util.lib sub.lib $(LDFLAGS)
 
 hello.cmd: hello.o util.lib
 	$(LD) -o $@ hello.o util.lib $(LDFLAGS)
@@ -47,9 +50,10 @@ os.o: os.asm
 # --------------------------------------------------------------------
 # Test image
 # --------------------------------------------------------------------
-cpmtest.img: menu.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub
+cpmtest.img: menu.cmd msub.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub
 	cp cpmbase.img cpmtest.img
 	cpmcp -f ibmpc-514ss cpmtest.img menu.cmd 0:
+	cpmcp -f ibmpc-514ss cpmtest.img msub.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img hello.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img *.dat 0:
 	cpmcp -f ibmpc-514ss cpmtest.img batch.sub 0:
@@ -69,7 +73,7 @@ menu-bin.zip: menu.cmd
 # Utility
 # --------------------------------------------------------------------
 clean:
-	$(RM) cpmtest.img *.o *.lib menu.cmd hello.cmd
+	$(RM) cpmtest.img *.o *.lib menu.cmd msub.cmd hello.cmd
 
 test: cpm86test
 

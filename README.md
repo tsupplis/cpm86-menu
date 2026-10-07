@@ -14,6 +14,7 @@ It is also an nice way to illustrate a solution/workaround to the lack of proces
 |------|-------|
 | `menu.cmd` | Default drive, any user area |
 | `menu.dat` | Same directory as `menu.cmd` |
+| `msub.cmd` | Optional: SUBMIT replacement, any drive (see [MSUB](#msub)) |
 
 
 ## Usage
@@ -152,6 +153,30 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
 | `B` | Back to parent menu | Only shown after navigating into an `M!` sub-menu |
 
 
+## MSUB
+
+`msub.cmd` is a drop-in SUBMIT built on the same library as the menu
+(`sub_load`), so `.sub` files behave exactly as in `S` entries.
+
+```
+B>MSUB
+
+MSUB SUB ORCHESTRATOR VER 1.0
+
+USAGE: MSUB file[.SUB] [parm1 parm2 ...]
+```
+
+| | DR `SUBMIT` | `MSUB` |
+|---|---|---|
+| Expansion | `$1`..`$9`, `$$`, `^A`..`^Z` | same, plus blank / `;` lines skipped, blanks trimmed |
+| Run from inside a running job | replaces `$$$.sub` (rest of the outer job is lost) | pushes on top: the outer job continues afterwards |
+| Errors | `Error On Line n` | `ERROR: <reason> FILE.SUB, line n`. Nothing is written. |
+| Limits | 125 chars per line | 125 chars per line, 64 lines, 128 records in `$$$.sub` |
+
+`MSUB` can be used inside `.sub` files, in `E` entries and in other `MSUB`
+jobs to build nested jobs.
+
+
 ## Limitations
 
 - **CP/M-86 1.1 only.** `menu.cmd` checks for BDOS 2.2 at start. The hand-over
@@ -190,7 +215,7 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
 Requires the `cpm86-crossdev` toolchain (`aztec42_cc`, `aztec42_link`, etc.).
 
 ```
-make          # builds menu.cmd and hello.cmd
+make          # builds menu.cmd, msub.cmd and hello.cmd
 make sub.lib  # builds the $$$.sub library independently
 make clean    # removes all generated files
 ```
@@ -211,6 +236,23 @@ Reusable CP/M-86 library for writing `$$$.sub` submit files.
 | `p_chain` | `void p_chain(char *cmd, int submode)` | Chain to `cmd` (BDOS 47). `submode` non-zero also sets the CCP submit flag so `$$$.sub` runs afterwards. |
 | `sub_active` | `int sub_active(void)` | 1 if the CCP is in submit mode (program started from `$$$.sub`), 0 if not, -1 if the CCP is not recognised. |
 | `sub_cmddrv` | `int sub_cmddrv(void)` | Drive prefix of the command the CCP is running (1 = A … 16 = P), 0 if none or unknown. |
+| `sub_load` | `int sub_load(char *cmd)` | Read and expand `"[d:]file[.typ] [p1 …]"` (`subfile.c`). Returns the line count (> 0) or a `SUBERR_*` code (≤ 0). |
+| `sub_line` | `char *sub_line(int i)` | Expanded line `i` (0 = first line of the file). |
+| `sub_pushall` | `int sub_pushall(void)` | Push all loaded lines on the open `$$$.sub`, last first. Returns 0 / -1. |
+| `sub_name` | `char *sub_name(void)` | File actually opened, e.g. `B:BACKUP.SUB`. |
+| `sub_errmsg` | `char *sub_errmsg(int err)` | Message for a `SUBERR_*` code; the file name follows it. |
+| `sub_errline` | `int sub_errline(void)` | Source line of the last error, 0 if none. |
+
+Typical use (this is all of `MSUB`):
+
+```c
+n = sub_load("JOB P1 P2");                  /* read + expand, nothing written */
+if (n <= 0) { /* sub_errmsg(n), sub_name(), sub_errline() */ }
+sub_open(sub_active() == 1 ? SUB_APPEND : SUB_CREATE);
+sub_pushall();
+sub_close();                                /* on failure: sub_abort()       */
+sub_exit();                                 /* CCP runs it, no return        */
+```
 
 `sub_exit`, `p_chain`, `sub_active` and `sub_cmddrv` live in `os.asm` and only
 touch the CCP after recognising the CP/M-86 1.1 CCP (version 22h and the

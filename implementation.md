@@ -11,6 +11,8 @@ flowchart LR
         MC["menu.c<br/>UI, launch"]
         MD["menudat.c<br/>.dat parser"]
         SC["sub.c<br/>$$$.SUB stack"]
+        SF["subfile.c<br/>.sub reader"]
+        MS["msub.c<br/>SUBMIT replacement"]
         CO["conio.c<br/>VT52 console"]
         OS["os.asm<br/>BDOS / CCP access"]
     end
@@ -19,6 +21,7 @@ flowchart LR
         UL["util.lib"]
     end
     SC --> SL
+    SF --> SL
     CO --> UL
     OS --> UL
     MC --> CMD["menu.cmd"]
@@ -26,11 +29,16 @@ flowchart LR
     SL --> CMD
     UL --> CMD
     LC["Aztec libc<br/>(-lc86)"] --> CMD
+    MS --> MSC["msub.cmd"]
+    SL --> MSC
+    UL --> MSC
 ```
 
 | File | Key functions |
 |---|---|
-| `menu.c` | `main`, `draw_screen`, `draw_entry`, `read_submit`, `build_menucmd`, `menu_error` |
+| `menu.c` | `main`, `draw_screen`, `draw_entry`, `build_menucmd`, `menu_error` |
+| `msub.c` | `main`: banner, usage, `sub_load` → push → `sub_exit` |
+| `subfile.c` | `sub_load`, `sub_line`, `sub_pushall`, `sub_name`, `sub_errmsg`, `sub_errline` |
 | `menudat.c` | `load_menu` → `items[]`, `menu_title`, `menu_back`, `menu_quit_disabled`, `menu_has_snr` |
 | `sub.c` | `sub_open` (CREATE / APPEND), `sub_append`, `sub_close`, `sub_abort`, `sub_delete` |
 | `os.asm` | `ccpseg` (gate), `setsub`, `sub_exit`, `p_chain`, `sub_active`, `sub_cmddrv` |
@@ -71,14 +79,14 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    S0{"S / SP / S! ?"} -- yes --> RS["read_submit<br/>expand to sub_lines[]"]
+    S0{"S / SP / S! ?"} -- yes --> RS["sub_load<br/>read + expand"]
     RS -- error --> ER["menu_error<br/>stay in menu"]
     RS --> M1
     S0 -- no --> M1["remenu = E S C, not exit-only<br/>menucmd = [D:]MENU D:dat /n [/P]"]
     M1 --> C0{"C / C! and not remenu ?"}
     C0 -- yes --> CH["p_chain(cmd)<br/>no MENU record"]
     C0 -- no --> OP["sub_open<br/>APPEND if subact = 1, else CREATE"]
-    OP --> PU["push: menucmd (if remenu)<br/>then lines / cmd"]
+    OP --> PU["push: menucmd (if remenu)<br/>then sub_pushall / cmd"]
     PU -- "write fails" --> AB["sub_abort<br/>menu_error"]
     PU --> CL["sub_close"]
     CL --> W{"C / CP ?"}

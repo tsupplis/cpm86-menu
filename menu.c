@@ -207,148 +207,6 @@ static void draw_screen(int sel, int has_back)
 }
 
 /* ------------------------------------------------------------------ */
-/*
- * read_submit: read a .sub file and expand it into sub_lines[] using the
- * DR SUBMIT rules: $1..$9 = parameters (missing = empty), $$ = '$',
- * ^A..^Z = control character, leading blanks skipped, trailing blanks
- * trimmed, blank lines dropped. Lines are upcased like SUBMIT/CCP do.
- *
- * cmd format: "[D:]FILENAME[.TYP] [param1 [param2 ...]]"
- * ".SUB" is added when the name has no type.
- *
- * Returns the number of lines (>0) or one of the SUBERR_* codes.
- * Read before $$$.SUB is created so errors leave the menu running.
- */
-#define SUB_MAX_LINES  64    /* $$$.SUB lives in one extent: 128 records */
-#define SUB_LINE_LEN   126   /* CCP limit: 125 chars + NUL               */
-#define SUB_PARAM_LEN  32
-
-#define SUBERR_EMPTY    0
-#define SUBERR_OPEN    -1
-#define SUBERR_LONG    -2
-#define SUBERR_LINES   -3
-#define SUBERR_CTRL    -4
-
-static char sub_lines[SUB_MAX_LINES][SUB_LINE_LEN];
-static char sub_fname[16];  /* d:filename.typ + NUL */
-
-static int read_submit(cmd)
-    char *cmd;
-{
-    FILE *fp;
-    char  params[9][SUB_PARAM_LEN + 1];
-    int   nparams;
-    int   nlines;
-    char  buf[256];
-    char *out;
-    char *p;
-    char *q;
-    char *s;
-    int   i;
-    int   j;
-    int   base;
-    int   pn;
-    int   err;
-
-    /* --- file name: whole token, extra characters ignored --- */
-    p = cmd;
-    while (*p == ' ' || *p == '\t') p++;
-    i = 0;
-    while (*p != '\0' && *p != ' ' && *p != '\t') {
-        if (i < 14) {
-            sub_fname[i] = *p;
-            if (*p >= 'a' && *p <= 'z') sub_fname[i] = *p - 'a' + 'A';
-            i++;
-        }
-        p++;
-    }
-    sub_fname[i] = '\0';
-    base = (i >= 2 && sub_fname[1] == ':') ? 2 : 0;
-    {
-        int hasdot = 0;
-        for (j = base; j < i; j++) if (sub_fname[j] == '.') { hasdot = 1; break; }
-        if (!hasdot && i - base <= 8) {
-            sub_fname[i]='.'; sub_fname[i+1]='S'; sub_fname[i+2]='U';
-            sub_fname[i+3]='B'; sub_fname[i+4]='\0';
-        }
-    }
-
-    /* --- parameters $1..$9: whole tokens, extra characters ignored --- */
-    nparams = 0;
-    while (*p != '\0' && nparams < 9) {
-        while (*p == ' ' || *p == '\t') p++;
-        if (*p == '\0') break;
-        j = 0;
-        while (*p != '\0' && *p != ' ' && *p != '\t') {
-            if (j < SUB_PARAM_LEN) params[nparams][j++] = *p;
-            p++;
-        }
-        params[nparams][j] = '\0';
-        nparams++;
-    }
-
-    fp = fopen(sub_fname, "r");
-    if (fp == 0) return SUBERR_OPEN;
-
-    nlines = 0;
-    err = 0;
-    while (fgets(buf, sizeof(buf), fp) != 0) {
-        /* strip \r\n; a line without \n that filled buf is too long */
-        for (q = buf; *q != '\0' && *q != '\r' && *q != '\n'; q++) ;
-        if (*q == '\0' && q - buf == sizeof(buf) - 1) { err = SUBERR_LONG; break; }
-        *q = '\0';
-
-        q = buf;
-        while (*q == ' ' || *q == '\t') q++;
-        if (*q == '\0' || *q == ';') continue;
-
-        if (nlines >= SUB_MAX_LINES) { err = SUBERR_LINES; break; }
-        out = sub_lines[nlines];
-
-        /* expand into out[] */
-        j = 0;
-        while (*q != '\0' && err == 0) {
-            if (q[0] == '$' && q[1] == '$') {
-                if (j < SUB_LINE_LEN - 1) out[j++] = '$'; else err = SUBERR_LONG;
-                q += 2;
-            } else if (q[0] == '$' && q[1] >= '1' && q[1] <= '9') {
-                pn = q[1] - '1';
-                if (pn < nparams) {
-                    for (s = params[pn]; *s != '\0'; s++) {
-                        if (j < SUB_LINE_LEN - 1) out[j++] = *s;
-                        else { err = SUBERR_LONG; break; }
-                    }
-                }
-                q += 2;
-            } else if (q[0] == '^') {
-                char c = q[1];
-                if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
-                if (c < 'A' || c > 'Z') { err = SUBERR_CTRL; break; }
-                if (j < SUB_LINE_LEN - 1) out[j++] = (char)(c - 'A' + 1); else err = SUBERR_LONG;
-                q += 2;
-            } else {
-                if (j < SUB_LINE_LEN - 1) out[j++] = *q; else err = SUBERR_LONG;
-                q++;
-            }
-        }
-        if (err != 0) break;
-
-        /* trim trailing blanks, drop lines left empty */
-        while (j > 0 && (out[j-1] == ' ' || out[j-1] == '\t')) j--;
-        out[j] = '\0';
-        if (j == 0) continue;
-
-        for (i = 0; i < j; i++)
-            if (out[i] >= 'a' && out[i] <= 'z') out[i] = out[i] - 'a' + 'A';
-        nlines++;
-    }
-    fclose(fp);
-
-    if (err != 0) return err;
-    return nlines;
-}
-
-/* ------------------------------------------------------------------ */
 /* Show an error on the footer row, wait for a key, redraw the menu.    */
 static void menu_error(msg, arg, sel, has_back)
     char *msg;
@@ -410,20 +268,6 @@ static void build_menucmd(menucmd, datfile, cmddrv, sel, pause)
         menucmd[j++] = ' '; menucmd[j++] = '/'; menucmd[j++] = 'P';
     }
     menucmd[j] = '\0';
-}
-
-/* ------------------------------------------------------------------ */
-
-static char *sub_errmsg(n)
-    int n;
-{
-    switch (n) {
-    case SUBERR_OPEN:  return "Cannot open ";
-    case SUBERR_LONG:  return "Line over 125 chars in ";
-    case SUBERR_LINES: return "Too many lines in ";
-    case SUBERR_CTRL:  return "Bad ^ control char in ";
-    }
-    return "No commands in ";
 }
 
 /* ------------------------------------------------------------------ */
@@ -580,9 +424,9 @@ reload:
                 /* read and check the .sub file before touching $$$.SUB */
                 n = 0;
                 if (type == MTYPE_S || type == MTYPE_SNR) {
-                    n = read_submit(items[sel].cmd);
+                    n = sub_load(items[sel].cmd);
                     if (n <= 0) {
-                        menu_error(sub_errmsg(n), sub_fname, sel, has_back);
+                        menu_error(sub_errmsg(n), sub_name(), sel, has_back);
                         continue;
                     }
                 }
@@ -609,8 +453,7 @@ reload:
                 if (!bad && remenu)
                     bad = (sub_append(menucmd) != 0);
                 if (!bad && (type == MTYPE_S || type == MTYPE_SNR)) {
-                    for (i = n - 1; i >= 0 && !bad; i--)
-                        bad = (sub_append(sub_lines[i]) != 0);
+                    bad = (sub_pushall() != 0);
                 } else if (!bad && (type == MTYPE_E || type == MTYPE_ENR)) {
                     bad = (sub_append(items[sel].cmd) != 0);
                 }

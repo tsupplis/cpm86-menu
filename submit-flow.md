@@ -224,6 +224,8 @@ flowchart TB
     D -. "user picks another entry" .-> C
 ```
 
+`MSUB` (`msub.cmd`) makes the same choice, so `MSUB` jobs nest the same way.
+
 To push, `sub_open(SUB_APPEND)` opens the file and sets the current record to
 its record count (BDOS open returns the record count of extent 0 in FCB byte
 15). Sequential writes then go on top. If a write fails, `sub_abort` puts the
