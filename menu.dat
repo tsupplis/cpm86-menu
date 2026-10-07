@@ -1,0 +1,13 @@
+; menu.dat -- CP/M-86 application menu sample
+; Lines starting with ; are comments. Blank lines are ignored.
+
+T CP/M-86 application menu version 1.0
+
+E  Program with return menu | HELLO
+E! Progam exit after        | HELLO
+S  Batch with menu          | BATCH PARAM1
+S! Batch exit after         | BATCH PARAM2
+C  Chain with return menu   | HELLO
+C! Chain exit after         | HELLO
+M  Sub-menu 1 (no quit)     | menu1.dat
+M  Sub-menu 2               | menu2.dat

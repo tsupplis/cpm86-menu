@@ -1,0 +1,13 @@
+; menu1.dat -- sub-menu sample (Q! active, B returns to menu.dat)
+
+T Sub-menu 1
+
+Q!
+M! menu.dat
+
+E  App A             | HELLO
+E! App B             | HELLO
+S  Batch with menu   | BATCH PARAM1
+S! Batch exit after  | BATCH PARAM2
+C  Chain with menu   | HELLO
+C! Chain exit after  | HELLO
