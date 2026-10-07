@@ -50,7 +50,7 @@ os.o: os.asm
 # --------------------------------------------------------------------
 # Test image
 # --------------------------------------------------------------------
-cpmtest.img: menu.cmd msub.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub
+cpmtest.img: menu.cmd msub.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub soak/*
 	cp cpmbase.img cpmtest.img
 	cpmcp -f ibmpc-514ss cpmtest.img menu.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img msub.cmd 0:
@@ -58,22 +58,30 @@ cpmtest.img: menu.cmd msub.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub 
 	cpmcp -f ibmpc-514ss cpmtest.img *.dat 0:
 	cpmcp -f ibmpc-514ss cpmtest.img batch.sub 0:
 	cpmcp -f ibmpc-514ss cpmtest.img nest.sub 0:
+	cpmcp -f ibmpc-514ss cpmtest.img soak/* 0:
 	cpmls -F -f ibmpc-514ss cpmtest.img 
 
 # --------------------------------------------------------------------
 # Binary zip
 # --------------------------------------------------------------------
-dist: menu-bin.zip
+# Programs, the sample menus/jobs they use (HELLO is the demo program the
+# samples launch), and the soak test. -j: flat archive, no soak/ folder.
+DIST_CMD  = menu.cmd msub.cmd hello.cmd
+DIST_DAT  = menu.dat menu1.dat menu2.dat soak/soak.dat
+DIST_SUB  = batch.sub nest.sub soak/soak.sub soak/soaka.sub soak/soakb.sub soak/soakm.sub
+DIST_DOC  = README.md LICENSE.md
 
-menu-bin.zip: menu.cmd
-	rm -f menu-bin.zip
-	zip menu-bin.zip menu.cmd
+dist: msub.zip
+
+msub.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_SUB) $(DIST_DOC)
+	rm -f msub.zip
+	zip -j msub.zip $^
 
 # --------------------------------------------------------------------
 # Utility
 # --------------------------------------------------------------------
 clean:
-	$(RM) cpmtest.img *.o *.lib menu.cmd msub.cmd hello.cmd
+	$(RM) cpmtest.img *.o *.lib menu.cmd msub.cmd hello.cmd msub.zip
 
 test: cpm86test
 

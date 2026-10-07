@@ -94,6 +94,7 @@ int sub_load(cmd)
 
         q = buf;
         while (*q == ' ' || *q == '\t') q++;
+        /* blank line, or ; as first non-blank = comment; a later ; is text */
         if (*q == '\0' || *q == ';') continue;
 
         if (nlines >= SUB_MAX_LINES) { err = SUBERR_LINES; break; }

@@ -8,6 +8,8 @@ It can be considered as an invented precursor to the concurrent dos batch menu b
 It is also an nice way to illustrate a solution/workaround to the lack of process management in BDOS 2.2.
 
 
+This menu program is accompanied by an msub.cmd command which is a clean room replacement for submit more tolerant to badly shaped content (ignore empty lines, comments starting with ';' space trimming ...)
+
 ## Installation
 
 | File | Where |
@@ -116,8 +118,14 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
 - `$1`..`$9` are replaced by the parameters (missing ones expand to nothing;
   each parameter is used up to 32 chars), `$$` gives `$`, `^A`..`^Z` give the
   control character.
-- Leading and trailing blanks are removed; blank lines and `;` lines are
-  skipped.
+- Leading and trailing blanks are removed and blank lines are skipped.
+- A line whose first non-blank character is `;` is a comment and is skipped.
+  A `;` anywhere else is ordinary text passed to the command:
+
+  ```
+      ;    this whole line is ignored
+  command ; this is kept, the command gets "; this is kept…"
+  ```
 - Limits: 125 chars per expanded line, 64 lines per file. Exceeding either is
   reported as an error rather than truncated.
 - Reading stops at the first `^Z` (CP/M end of text). `.sub` files made on a
@@ -168,7 +176,7 @@ USAGE: MSUB file[.SUB] [parm1 parm2 ...]
 
 | | DR `SUBMIT` | `MSUB` |
 |---|---|---|
-| Expansion | `$1`..`$9`, `$$`, `^A`..`^Z` | same, plus blank / `;` lines skipped, blanks trimmed |
+| Expansion | `$1`..`$9`, `$$`, `^A`..`^Z` | same, plus blank lines and `;` comment lines (`;` first non-blank) skipped, blanks trimmed |
 | Run from inside a running job | replaces `$$$.sub` (rest of the outer job is lost) | pushes on top: the outer job continues afterwards |
 | Errors | `Error On Line n` | `ERROR: <reason> FILE.SUB, line n`. Nothing is written. |
 | Limits | 125 chars per line | 125 chars per line, 64 lines, 128 records in `$$$.sub` |
@@ -216,6 +224,8 @@ Requires the `cpm86-crossdev` toolchain (`aztec42_cc`, `aztec42_link`, etc.).
 
 ```
 make          # builds menu.cmd, msub.cmd and hello.cmd
+make dist     # msub.zip: menu.cmd, msub.cmd, hello.cmd, sample .dat/.sub,
+              # soak test files (they expect to run from B: with STAT on A:)
 make sub.lib  # builds the $$$.sub library independently
 make clean    # removes all generated files
 ```

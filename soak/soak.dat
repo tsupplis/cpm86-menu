@@ -1,0 +1,10 @@
+T Soak test
+E  Dir DAT                | DIR B:*.DAT
+EP Dir SUB, pause         | DIR B:*.SUB
+S  Nested S entry         | SOAKB S M
+SP Nested S entry, pause  | SOAKB SP M
+E  MSUB from the menu     | MSUB SOAKB E M
+C  Chain STAT             | A:STAT B:
+CP Chain STAT, pause      | A:STAT B:
+E! Leave, job continues   | DIR B:SOAKX.*
+

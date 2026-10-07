@@ -15,7 +15,8 @@ int  sub_cmddrv(void);     /* drive (1=A..16=P) prefixing the running CCP comman
 int  sub_active(void);     /* CCP submit mode: 1 = on, 0 = off, -1 = unknown CCP */
 
 /* .sub reader (subfile.c) -- DR SUBMIT rules: $1..$9, $$, ^A..^Z,
-   blanks trimmed, blank and ; lines skipped, stops at ^Z */
+   blanks trimmed, blank lines and lines whose first non-blank is ;
+   skipped (a ; later in a line is kept), stops at ^Z */
 #define SUB_MAX_LINES  64    /* lines per .sub file                       */
 #define SUB_LINE_LEN   126   /* expanded line: CCP limit 125 chars + NUL  */
 #define SUB_PARAM_LEN  32    /* chars used per parameter                  */
