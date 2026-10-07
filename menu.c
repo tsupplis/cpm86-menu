@@ -15,11 +15,13 @@
  *   ...up to 15 entries...
  *  Row 18 : | 15. entry 15      |
  *  Row 19..21: blank filler rows
- *  Row 22 : c----[78 dashes]----d       content box bottom
- *  Row 23 :    [Up/k]...               footer (unboxed)
+ *  Row 22 : | [Up/'K'] ... [Q] Quit |   footer / messages, inside the box
+ *  Row 23 : c----[78 dashes]----d       content box bottom
  *
  * Each row: col 0 = '|', cols 1..78 = content (78 chars), col 79 = '|'
- * Total chars per row = 80  (fits in 80-col terminal without wrapping)
+ * Total chars per row = 80. Writing col 79 of row 23 would wrap and scroll
+ * the screen, so line wrap is off (ESC w) while the menu is shown and back
+ * on (ESC v) whenever the menu leaves the screen (leave_screen).
  * INNER_WIDTH = 78
  */
 
@@ -32,8 +34,8 @@
 #define SEP1_ROW      2   /* b===d  title box bottom  */
 #define BLANK1_ROW    3   /* |   |  blank             */
 #define FIRST_ROW     4   /* |   |  first entry       */
-#define SEP3_ROW      22  /* c---d  content box bottom */
-#define FOOTER_ROW    23  /* unboxed footer            */
+#define FOOTER_ROW    22  /* |   |  footer / messages   */
+#define BOX_BOT_ROW   23  /* c---d  content box bottom */
 
 static char CH_WALL  = 179;
 static char CH_DASH  = 196;
@@ -81,6 +83,48 @@ static void draw_hline(int row, char mid, char left, char right)
 static void draw_blank_row(int row)
 {
     draw_hline(row, CH_SPACE, CH_WALL, CH_WALL);
+}
+
+/* "| text<pad>|" on row, text cut to fit the box */
+static void draw_textrow(row, text)
+    int   row;
+    char *text;
+{
+    int k;
+
+    gotoxy(row, 0);
+    k = 0;
+    rowbuf[k++] = CH_WALL;
+    rowbuf[k++] = CH_SPACE;
+    while (*text != '\0' && k < INNER_WIDTH + 1)
+        rowbuf[k++] = *text++;
+    while (k < INNER_WIDTH + 1)
+        rowbuf[k++] = CH_SPACE;
+    rowbuf[k++] = CH_WALL;
+    rowbuf[k] = '\0';
+    cputs(rowbuf);
+}
+
+/* append src to dst, dst holding at most max chars */
+static void sappend(dst, src, max)
+    char *dst;
+    char *src;
+    int   max;
+{
+    int n;
+
+    for (n = 0; dst[n] != '\0'; n++) ;
+    while (*src != '\0' && n < max)
+        dst[n++] = *src++;
+    dst[n] = '\0';
+}
+
+/* hand the screen back: clear, cursor on, line wrap on again */
+static void leave_screen()
+{
+    clrscr();
+    cursor(CURSOR_ON);
+    wrapline(WRAPLINE_ON);
 }
 
 /* ------------------------------------------------------------------ */
@@ -156,9 +200,11 @@ static void draw_screen(int sel, int has_back)
     int pad;
     int tlen;
     int row;
+    char foot[INNER_WIDTH + 1];
 
     clrscr();
     cursor(CURSOR_OFF);
+    wrapline(WRAPLINE_OFF);     /* row 23 col 79 must not scroll */
     setfg(7); setbg(0);
 
     /* Row 0: a---c  title box top */
@@ -191,19 +237,20 @@ static void draw_screen(int sel, int has_back)
     /* Rows 4..N: entries + blank filler */
     for (i = 0; i < count; i++)
         draw_entry(i, i == sel);
-    for (row = FIRST_ROW + count; row < SEP3_ROW; row++)
+    for (row = FIRST_ROW + count; row < FOOTER_ROW; row++)
         draw_blank_row(row);
 
-    /* Row 22: c---d  content box bottom */
-    draw_hline(SEP3_ROW, CH_DASH, CH_BL, CH_BR);
-
-    /* Row 23: unboxed footer */
-    gotoxy(FOOTER_ROW, 0);
-    cputs(" [Up/'K'] Previous  [Down/'J'] Next  [Enter] Launch");
+    /* Row 22: | footer | */
+    foot[0] = '\0';
+    sappend(foot, "[Up/'K'] Previous  [Down/'J'] Next  [Enter] Launch", INNER_WIDTH);
     if (!menu_quit_disabled)
-        cputs("  [Q] Quit");
+        sappend(foot, "  [Q] Quit", INNER_WIDTH);
     if (has_back)
-        cputs("  [B] Back");
+        sappend(foot, "  [B] Back", INNER_WIDTH);
+    draw_textrow(FOOTER_ROW, foot);
+
+    /* Row 23: c---d  content box bottom */
+    draw_hline(BOX_BOT_ROW, CH_DASH, CH_BL, CH_BR);
 }
 
 /* ------------------------------------------------------------------ */
@@ -214,13 +261,14 @@ static void menu_error(msg, arg, sel, has_back)
     int   sel;
     int   has_back;
 {
+    char text[INNER_WIDTH + 1];
+
     draw_screen(sel, has_back);
-    gotoxy(FOOTER_ROW, 0);
-    clreol();
-    cputs(" ");
-    cputs(msg);
-    if (arg != 0) cputs(arg);
-    cputs(" -- press a key");
+    text[0] = '\0';
+    sappend(text, msg, INNER_WIDTH);
+    if (arg != 0) sappend(text, arg, INNER_WIDTH);
+    sappend(text, " -- press a key", INNER_WIDTH);
+    draw_textrow(FOOTER_ROW, text);
     getch();
     draw_screen(sel, has_back);
 }
@@ -337,7 +385,9 @@ reload:
 
     count = load_menu(items, MAX_ENTRIES, datfile);
     if (count == 0) {
-        cputs("No entries found in: "); cputs(datfile); cputs("\r\n");
+        wrapline(WRAPLINE_ON);      /* may come from B after a draw */
+        cursor(CURSOR_ON);
+        cputs("\r\nNo entries found in: "); cputs(datfile); cputs("\r\n");
         cputs("Usage: MENU [datafile.dat] [/n] [/P]\r\n");
         return 1;
     }
@@ -441,8 +491,7 @@ reload:
                        stale $$$.SUB and leave MDSUBE alone */
                     if (subact != 1)
                         sub_delete();
-                    clrscr();
-                    cursor(CURSOR_ON);
+                    leave_screen();
                     p_chain(items[sel].cmd, subact == 1); /* no return */
                     return 0;
                 }
@@ -467,8 +516,7 @@ reload:
                     continue;
                 }
 
-                clrscr();
-                cursor(CURSOR_ON);
+                leave_screen();
                 if (type == MTYPE_C)
                     p_chain(items[sel].cmd, 1);  /* no return on success */
                 else
@@ -480,8 +528,7 @@ reload:
             /* inside a SUBMIT job the CCP carries on with the rest of it */
             if (subact != 1)
                 sub_delete();
-            clrscr();
-            cursor(CURSOR_ON);
+            leave_screen();
             return 0;
 
         } else if ((c == 'b' || c == 'B') && has_back) {
