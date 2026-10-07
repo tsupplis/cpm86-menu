@@ -38,9 +38,22 @@ int cputs(str)
 int cputs(char *str)
 #endif
 {
+	/* BDOS 9 prints up to a '$': send each run without '$' in one call,
+	   and the '$' characters themselves through BDOS 2 */
+	char buf[81];
+	int  n;
+
 	while (*str) {
-		bdos(2,*str++);
-    }
+		n = 0;
+		while (*str && *str != '$' && n < 80)
+			buf[n++] = *str++;
+		if (n) {
+			buf[n] = '$';
+			bdos(9, buf);
+		}
+		if (*str == '$')
+			bdos(2, *str++);
+	}
 	return 0;
 }
 

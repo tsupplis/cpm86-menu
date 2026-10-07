@@ -4,10 +4,13 @@
 T CP/M-86 application menu version 1.0
 
 E  Program with return menu | HELLO
+EP Program, pause, return   | HELLO
 E! Progam exit after        | HELLO
 S  Batch with menu          | BATCH PARAM1
+SP Batch, pause, return     | BATCH PARAM3
 S! Batch exit after         | BATCH PARAM2
 C  Chain with return menu   | HELLO
+CP Chain, pause, return     | HELLO
 C! Chain exit after         | HELLO
 M  Sub-menu 1 (no quit)     | menu1.dat
 M  Sub-menu 2               | menu2.dat

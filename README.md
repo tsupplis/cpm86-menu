@@ -16,6 +16,23 @@ It is also an nice way to illustrate a solution/workaround to the lack of proces
 | `menu.dat` | Same directory as `menu.cmd` |
 
 
+## Usage
+
+```
+MENU [file.dat] [/n] [/P]
+```
+
+| Argument | Meaning |
+|---|---|
+| `file.dat` | Menu file to load (default `menu.dat`). |
+| `/n` | Start with entry `n` (1-based) selected. |
+| `/P` | Show "Press any key to return to the menu" and wait before drawing. |
+
+`/n` and `/P` are mostly written by `menu.cmd` itself in the re-launch line,
+so the menu comes back on the entry that was run and, for `EP`/`SP`/`CP`
+entries, after a key press.
+
+
 ## menu.dat Format
 
 Each line is a **directive**. Lines starting with `;` are comments; blank lines
@@ -29,12 +46,15 @@ Maximum 15 entries per file.
 | `T` | `T {title}` | Set the title bar text. Optional; default title used if absent. |
 | `Q!` | `Q!` | Disable the `Q`/Quit key entirely. |
 | `E` | `E {label} \| {command}` | Launch command; re-launch `MENU` afterwards (stays in menu loop). |
+| `EP` | `EP {label} \| {command}` | As `E`, then wait for a key before the menu redraws (output stays visible). |
 | `E!` | `E! {label} \| {command}` | Launch command; exit cleanly — no `MENU` re-launch. |
 | `S` | `S {label} \| {file} [{params}]` | Run a SUBMIT file; re-launch `MENU` afterwards. |
+| `SP` | `SP {label} \| {file} [{params}]` | As `S`, then wait for a key once the whole file has run. |
 | `S!` | `S! {label} \| {file} [{params}]` | Run a SUBMIT file; exit cleanly — no `MENU` re-launch. |
 | `M` | `M {label} \| {menu.dat}` | Selectable entry: load a sub-menu in-process. |
 | `M!` | `M! {menu.dat}` | Directive (not an entry): set the `B`/Back destination for this dat file. |
 | `C` | `C {label} \| {command}` | Chain directly to command via `P_CHAIN`; `MENU datfile` queued in `$$$.sub` so CCP returns to menu after. |
+| `CP` | `CP {label} \| {command}` | As `C`, then wait for a key before the menu redraws. |
 | `C!` | `C! {label} \| {command}` | Chain directly to command via `P_CHAIN`; exits cleanly with no re-launch. |
 
 ### Field limits
@@ -53,7 +73,8 @@ T  My CP/M-86 System
 
 E  WordStar 4        | WS
 E  SuperCalc 3       | SC
-S  Run backup        | BACKUP DRIVE A
+EP Directory         | DIR
+SP Run backup        | BACKUP DRIVE A
 M  Utilities         | utils.dat
 E! Exit to CP/M      | EXIT
 ```
@@ -106,7 +127,7 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
 ### Drives and user areas
 
 - The re-launch line written to `$$$.sub` is drive-qualified:
-  `[D:]MENU D:file.dat`. The `MENU` prefix is the drive `menu.cmd` was started
+  `[D:]MENU D:file.dat /n [/P]`. The `MENU` prefix is the drive `menu.cmd` was started
   from (e.g. `B:MENU` typed at `A>`), read from the CCP command buffer; the
   `.dat` file gets the current drive when it has none.
 - Programs that change drive or user themselves (BDOS 14/32) are fine: the CCP
@@ -116,7 +137,8 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
   a bare drive change (`B:`) or `USER n` therefore ends the `$$$.sub` chain:
   the remaining lines and the `MENU` re-launch are not run. Use a
   drive-prefixed command instead (`E Prog | B:PROG`), which loads from `B:`
-  without changing the CCP's current drive.
+  without changing the CCP's current drive. A possible way to support real
+  drive/user switching is described in [drive-user.md](drive-user.md).
 
 
 ## Keys
@@ -128,6 +150,39 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
 | `Enter` | Launch selected entry | |
 | `Q` | Quit to CP/M prompt, or back to the SUBMIT job that started `MENU` | Disabled if `Q!` present in `.dat` |
 | `B` | Back to parent menu | Only shown after navigating into an `M!` sub-menu |
+
+
+## Limitations
+
+- **CP/M-86 1.1 only.** `menu.cmd` checks for BDOS 2.2 at start. The hand-over
+  to the CCP also requires the known CCP layout (signature check, see
+  [submit-flow.md](submit-flow.md)). On an unrecognised CCP the commands are
+  written to `$$$.sub` but the CCP is not told to run them.
+- **No bare drive or user change in a chain.** `B:` or `USER n` as an entry or
+  `.sub` line ends the `$$$.sub` chain (see *Drives and user areas*).
+- **DR `SUBMIT.CMD` as an entry** replaces the whole `$$$.sub` stack, including
+  the `MENU` re-launch and any outer job. Use `S` entries instead.
+- **Stack size:** `$$$.sub` holds at most 128 commands in total (the CCP only
+  reads the first 16K extent). An `S` file is limited to 64 lines of up to 125
+  characters.
+- **Menu size:** 15 entries per `.dat`, labels up to 70 characters, commands
+  up to 125.
+- **No cancel key for a running chain.** This CCP is patched not to stop a
+  `$$$.sub` run on a key press. `^C` inside a program does not end submit mode
+  either: the BDOS abort path (`CONSTA`) keeps `MDSUBE` or sets it again when
+  it finds `$$$.sub` while resetting the disks. A menu with `Q!` therefore has
+  no exit by design.
+- **emu2:** good for testing the UI and the `$$$.sub` contents. It cannot run
+  the CCP loop: BDOS fn 0 ends the emulator instead of returning to a CCP.
+
+
+## Design documents
+
+| Document | Contents |
+|---|---|
+| [implementation.md](implementation.md) | Modules, startup, key loop, launch path, CCP access, data formats, limits — mostly diagrams. |
+| [submit-flow.md](submit-flow.md) | How `$$$.sub` hands commands to the CCP and loops back to `MENU`, including `MENU` inside a SUBMIT job (section 7). |
+| [drive-user.md](drive-user.md) | Proposal (not implemented) for running entries in another drive / user area. |
 
 
 ## Build

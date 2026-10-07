@@ -19,6 +19,7 @@ typedef struct {
     char label[71];
     char cmd[MAX_CMD + 1]; /* command / dat file / submit file+params */
     int  type;          /* MTYPE_*                                  */
+    int  pause;         /* EP/SP/CP: wait for a key before the menu redraws */
 } MenuItem;
 
 /*

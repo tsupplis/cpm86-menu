@@ -241,6 +241,7 @@ The `MENU` line has to work from wherever the CCP is when it pops it.
 |---|---|
 | `B:` before `MENU` | The drive `menu.cmd` was started from. Read from the CCP's command buffer (`CMBUFF+2`, offset `000Bh`), which still holds `B:MENU …` while menu runs (`sub_cmddrv` in `os.asm`). |
 | `A:` before the `.dat` | The current drive (BDOS fn 25) when the `.dat` name has none. |
+| `/n` and `/P` after it | `/n`: the entry that was launched, so the menu comes back on it. `/P` (only for `EP`/`SP`/`CP`): menu waits for a key before drawing, so the entry's output stays visible. |
 
 ---
 

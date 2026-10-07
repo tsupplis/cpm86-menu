@@ -61,6 +61,7 @@ int load_menu(items, max, filename)
     char *cmd;
     int   count;
     int   type;
+    int   pause;
 
     /* Reset globals for this load */
     menu_quit_disabled = 0;
@@ -110,7 +111,11 @@ int load_menu(items, max, filename)
         }
 
         /* ---- Entry directives: determine type --------------------- */
+        pause = 0;
         if      (p[0]=='E' && p[1]=='!' && (p[2]==' '||p[2]=='\t')) { type=MTYPE_ENR; p+=3; }
+        else if (p[0]=='E' && p[1]=='P' && (p[2]==' '||p[2]=='\t')) { type=MTYPE_E;   p+=3; pause=1; }
+        else if (p[0]=='S' && p[1]=='P' && (p[2]==' '||p[2]=='\t')) { type=MTYPE_S;   p+=3; pause=1; }
+        else if (p[0]=='C' && p[1]=='P' && (p[2]==' '||p[2]=='\t')) { type=MTYPE_C;   p+=3; pause=1; }
         else if (p[0]=='E' &&              (p[1]==' '||p[1]=='\t')) { type=MTYPE_E;   p+=2; }
         else if (p[0]=='S' && p[1]=='!' && (p[2]==' '||p[2]=='\t')) { type=MTYPE_SNR; p+=3; }
         else if (p[0]=='S' &&              (p[1]==' '||p[1]=='\t')) { type=MTYPE_S;   p+=2; }
@@ -148,6 +153,7 @@ int load_menu(items, max, filename)
         scopy(items[count].label, label, MAX_LABEL);
         scopy(items[count].cmd,   cmd,   MAX_CMD);
         items[count].type = type;
+        items[count].pause = pause;
 
         if (type == MTYPE_SNR)
             menu_has_snr = 1;

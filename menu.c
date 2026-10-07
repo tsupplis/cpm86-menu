@@ -62,23 +62,25 @@ static void setbg(int bg)
 }
 
 /* ------------------------------------------------------------------ */
+/* Rows are built in rowbuf and sent with one cputs (BDOS 9) per row,
+   instead of one BDOS call per character. */
+static char rowbuf[SCREEN_COLS + 1];
+
 /* Draw a horizontal border row with given fill, left and right chars  */
 static void draw_hline(int row, char mid, char left, char right)
 {
     int i;
     gotoxy(row, 0);
-    cputc(left);
-    for (i = 0; i < INNER_WIDTH; i++) cputc(mid);
-    cputc(right);
+    rowbuf[0] = left;
+    for (i = 1; i <= INNER_WIDTH; i++) rowbuf[i] = mid;
+    rowbuf[INNER_WIDTH + 1] = right;
+    rowbuf[INNER_WIDTH + 2] = '\0';
+    cputs(rowbuf);
 }
 
 static void draw_blank_row(int row)
 {
-    int i;
-    gotoxy(row, 0);
-    cputc(CH_WALL);
-    for (i = 0; i < INNER_WIDTH; i++) cputc(CH_SPACE);
-    cputc(CH_WALL);
+    draw_hline(row, CH_SPACE, CH_WALL, CH_WALL);
 }
 
 /* ------------------------------------------------------------------ */
@@ -86,6 +88,7 @@ static void draw_blank_row(int row)
 static void draw_entry(int idx, int selected)
 {
     int n;
+    int k;
     int col;
     char *p;
 
@@ -96,33 +99,38 @@ static void draw_entry(int idx, int selected)
     if (selected) { setfg(0);  setbg(7); }
     else          { setfg(14); setbg(0); }
 
-    /* 1 highlighted space + N. label + fill + 1 highlighted space */
-    cputc(CH_SPACE);
+    /* 1 highlighted space + N. label + fill + 1 highlighted space,
+       built in rowbuf (k) while col tracks the screen column */
+    k = 0;
+    rowbuf[k++] = CH_SPACE;
     col = 2; /* 1 normal + 1 highlighted so far */
 
     n = idx + 1;
     if (n >= 10) {
-        cputc((char)('0' + n / 10));
-        cputc((char)('0' + n % 10));
+        rowbuf[k++] = (char)('0' + n / 10);
+        rowbuf[k++] = (char)('0' + n % 10);
         col += 2;
     } else {
-        cputc((char)('0' + n));
+        rowbuf[k++] = (char)('0' + n);
         col += 1;
     }
-    cputs(". ");
+    rowbuf[k++] = '.';
+    rowbuf[k++] = ' ';
     col += 2;
 
-    for (p = items[idx].label; *p != '\0'; p++) {
-        cputc(*p);
+    for (p = items[idx].label; *p != '\0' && col < INNER_WIDTH - 2; p++) {
+        rowbuf[k++] = *p;
         col++;
     }
 
     /* fill up to 1 char before the trailing normal space and right wall */
     while (col < INNER_WIDTH - 2) {
-        cputc(CH_SPACE);
+        rowbuf[k++] = CH_SPACE;
         col++;
     }
-    cputc(CH_SPACE);                        /* 1 highlighted space after label */
+    rowbuf[k++] = CH_SPACE;                 /* 1 highlighted space after label */
+    rowbuf[k] = '\0';
+    cputs(rowbuf);
 
     setfg(7); setbg(0);
     cputc(CH_SPACE);                        /* 1 normal space after highlight */
@@ -144,6 +152,7 @@ static int slen(p)
 static void draw_screen(int sel, int has_back)
 {
     int i;
+    int k;
     int pad;
     int tlen;
     int row;
@@ -158,15 +167,20 @@ static void draw_screen(int sel, int has_back)
     /* Row 1: | title | */
     tlen = slen(menu_title);
     gotoxy(TITLE_ROW, 0);
-    cputc(CH_WALL);
     pad = (INNER_WIDTH - tlen) / 2;
-    for (i = 0; i < pad; i++) cputc(CH_SPACE);
+    rowbuf[0] = CH_WALL;
+    for (i = 1; i <= pad; i++) rowbuf[i] = CH_SPACE;
+    rowbuf[i] = '\0';
+    cputs(rowbuf);
     setfg(14);
     cputs(menu_title);
     setfg(7);
     i = pad + tlen;
-    while (i < INNER_WIDTH) { cputc(CH_SPACE); i++; }
-    cputc(CH_WALL);
+    k = 0;
+    while (i < INNER_WIDTH) { rowbuf[k++] = CH_SPACE; i++; }
+    rowbuf[k++] = CH_WALL;
+    rowbuf[k] = '\0';
+    cputs(rowbuf);
 
     /* Row 2: b===d  title box bottom */
     draw_hline(SEP1_ROW, CH_EQUAL, CH_EQL, CH_EQR);
@@ -356,16 +370,20 @@ static void menu_error(msg, arg, sel, has_back)
 /* ------------------------------------------------------------------ */
 
 /*
- * Build the re-launch command "[D:]MENU D:datfile".
+ * Build the re-launch command "[D:]MENU D:datfile /n[ /P]".
  * cmddrv: drive MENU.CMD was run from (sub_cmddrv(), 0 = none), so that
  *         "B:MENU" started from A> is re-launched from B.
  * datfile gets the current drive (BDOS 25) when it has no drive, so the
  * line is valid wherever the CCP runs it from.
+ * /n brings the menu back on entry n (1-based); /P makes it wait for a key
+ * first so the output of the entry stays on screen.
  */
-static void build_menucmd(menucmd, datfile, cmddrv)
+static void build_menucmd(menucmd, datfile, cmddrv, sel, pause)
     char *menucmd;
     char *datfile;
     int   cmddrv;
+    int   sel;
+    int   pause;
 {
     int i;
     int j;
@@ -383,6 +401,14 @@ static void build_menucmd(menucmd, datfile, cmddrv)
     }
     for (i = 0; datfile[i] != '\0' && i < 64; i++)
         menucmd[j++] = datfile[i];
+    menucmd[j++] = ' ';
+    menucmd[j++] = '/';
+    if (sel + 1 >= 10)
+        menucmd[j++] = (char)('0' + (sel + 1) / 10);
+    menucmd[j++] = (char)('0' + (sel + 1) % 10);
+    if (pause) {
+        menucmd[j++] = ' '; menucmd[j++] = '/'; menucmd[j++] = 'P';
+    }
     menucmd[j] = '\0';
 }
 
@@ -411,7 +437,9 @@ int main(argc, argv)
     int  c;
     int  has_back;
     char datfile[65];
-    char menucmd[80];   /* "[D:]MENU D:datfile" -- re-launch command */
+    char menucmd[96];   /* "[D:]MENU D:datfile /n /P" -- re-launch command */
+    int  startsel;      /* /n: entry to select on the first load, 0 = none */
+    int  pause;         /* /P: wait for a key before drawing */
     int  cmddrv;
     int  subact;        /* started from $$$.SUB: 1 yes, 0 no, -1 unknown */
     int  type;
@@ -422,16 +450,38 @@ int main(argc, argv)
         return 1;
     }
 
-    /* initialise datfile from argv or default */
-    if (argc > 1) {
+    /* MENU [datfile] [/n] [/P] */
+    datfile[0]='m'; datfile[1]='e'; datfile[2]='n';
+    datfile[3]='u'; datfile[4]='.'; datfile[5]='d';
+    datfile[6]='a'; datfile[7]='t'; datfile[8]='\0';
+    startsel = 0;
+    pause    = 0;
+    {
+        int a;
         int i;
-        for (i = 0; argv[1][i] != '\0' && i < 64; i++)
-            datfile[i] = argv[1][i];
-        datfile[i] = '\0';
-    } else {
-        datfile[0]='m'; datfile[1]='e'; datfile[2]='n';
-        datfile[3]='u'; datfile[4]='.'; datfile[5]='d';
-        datfile[6]='a'; datfile[7]='t'; datfile[8]='\0';
+        char *p;
+        for (a = 1; a < argc; a++) {
+            p = argv[a];
+            if (p[0] == '/') {
+                if (p[1] == 'P' || p[1] == 'p') {
+                    pause = 1;
+                } else if (p[1] >= '0' && p[1] <= '9') {
+                    startsel = 0;
+                    for (i = 1; p[i] >= '0' && p[i] <= '9'; i++)
+                        startsel = startsel * 10 + (p[i] - '0');
+                }
+            } else {
+                for (i = 0; p[i] != '\0' && i < 64; i++)
+                    datfile[i] = p[i];
+                datfile[i] = '\0';
+            }
+        }
+    }
+
+    if (pause) {
+        cursor(CURSOR_ON);
+        cputs("\r\nPress any key to return to the menu");
+        getch();
     }
 
     cmddrv = sub_cmddrv();
@@ -443,9 +493,14 @@ reload:
     count = load_menu(items, MAX_ENTRIES, datfile);
     if (count == 0) {
         cputs("No entries found in: "); cputs(datfile); cputs("\r\n");
-        cputs("Usage: MENU [datafile.dat]\r\n");
+        cputs("Usage: MENU [datafile.dat] [/n] [/P]\r\n");
         return 1;
     }
+
+    /* /n applies to the first load only */
+    if (startsel >= 1 && startsel <= count)
+        sel = startsel - 1;
+    startsel = 0;
 
     /* has_back driven by M! directive in the loaded dat */
     has_back = (menu_back[0] != '\0') ? 1 : 0;
@@ -533,7 +588,7 @@ reload:
                 }
 
                 /* built here so it follows M sub-menu navigation */
-                build_menucmd(menucmd, datfile, cmddrv);
+                build_menucmd(menucmd, datfile, cmddrv, sel, items[sel].pause);
 
                 if ((type == MTYPE_C || type == MTYPE_CNR) && !remenu) {
                     /* chain without coming back: inside a SUBMIT job the
