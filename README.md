@@ -10,6 +10,8 @@ It is also an nice way to illustrate a solution/workaround to the lack of proces
 
 This menu program is accompanied by an msub.cmd command which is a clean room replacement for submit more tolerant to badly shaped content (ignore empty lines, comments starting with ';' space trimming ...)
 
+![MENU running on CP/M-86 1.1](images/menu.png)
+
 ## Installation
 
 | File | Where |
