@@ -37,7 +37,7 @@ flowchart LR
 | File | Key functions |
 |---|---|
 | `menu.c` | `main`, `draw_screen`, `draw_entry`, `build_menucmd`, `menu_error` |
-| `msub.c` | `main`: banner, usage, `sub_load` → push → `sub_exit` |
+| `msub.c` | `main`: banner, usage, `/N` check, `sub_load` → push → `sub_exit` |
 | `subfile.c` | `sub_load`, `sub_line`, `sub_pushall`, `sub_name`, `sub_errmsg`, `sub_errline` |
 | `menudat.c` | `load_menu` → `items[]`, `menu_title`, `menu_back`, `menu_quit_disabled`, `menu_has_snr` |
 | `sub.c` | `sub_open` (CREATE / APPEND), `sub_append`, `sub_close`, `sub_abort`, `sub_delete` |

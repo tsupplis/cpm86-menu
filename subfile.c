@@ -58,6 +58,7 @@ static char sub_lines[SUB_MAX_LINES][SUB_LINE_LEN];
 static char sub_fname[16];  /* d:filename.typ + NUL */
 static int  sub_nlines;     /* lines loaded by the last sub_load       */
 static int  sub_srcline;    /* source line of the last error, 0 = none */
+static int  sub_lineno_[SUB_MAX_LINES]; /* source line of each loaded line */
 
 int sub_load(cmd)
     char *cmd;
@@ -165,6 +166,7 @@ int sub_load(cmd)
         while (j > 0 && (out[j-1] == ' ' || out[j-1] == '\t')) j--;
         out[j] = '\0';
         if (j == 0) continue;
+        sub_lineno_[nlines] = sub_srcline;
 
         for (i = 0; i < j; i++)
             if (out[i] >= 'a' && out[i] <= 'z') out[i] = out[i] - 'a' + 'A';
@@ -184,6 +186,13 @@ char *sub_line(i)
 {
     if (i < 0 || i >= sub_nlines) return "";
     return sub_lines[i];
+}
+
+int sub_lineno(i)
+    int i;
+{
+    if (i < 0 || i >= sub_nlines) return 0;
+    return sub_lineno_[i];
 }
 
 char *sub_name()

@@ -7,6 +7,7 @@
 int sub_open(int flags);
 int sub_append(char *cmd);
 int sub_close(void);
+int sub_records(void); /* records in the existing $$$SUB (0 if none); writes nothing */
 int sub_abort(void);   /* undo since sub_open: delete if created, else restore rc */
 int sub_delete(void);  /* BDOS 19: delete $$$SUB if it exists */
 void sub_exit(void);       /* BDOS fn 0: warm boot, CCP picks up $$$SUB automatically */
@@ -29,6 +30,7 @@ int  sub_active(void);     /* CCP submit mode: 1 = on, 0 = off, -1 = unknown CCP
 
 int   sub_load(char *cmd);   /* "[d:]file[.typ] [p1 ...]": lines (>0) or SUBERR_* */
 char *sub_line(int i);       /* expanded line i, 0 = first line of the file       */
+int   sub_lineno(int i);     /* source line number of loaded line i               */
 char *sub_name(void);        /* file actually opened, e.g. "B:BACKUP.SUB"         */
 int   sub_errline(void);     /* source line of the last error, 0 = none           */
 char *sub_errmsg(int err);   /* message for a SUBERR_* code (name to follow)      */

@@ -60,6 +60,18 @@ int sub_open(int flags)
     return 0;
 }
 
+int sub_records(void)
+{
+    int n;
+
+    fcb_reset();
+    if ((bdos(15, _fcb) & 0xFF) == 0xFF)
+        return 0;
+    n = _fcb[15] & 0xFF;    /* record count of extent 0 */
+    fcb_reset();
+    return n;
+}
+
 int sub_append(char *cmd)
 {
     int i;

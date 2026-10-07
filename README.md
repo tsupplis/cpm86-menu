@@ -40,11 +40,12 @@ entries, after a key press.
 ### MSUB
 
 ```
-MSUB file[.SUB] [parm1 parm2 ...]
+MSUB [/N] file[.SUB] [parm1 parm2 ...]
 ```
 
 | Argument | Meaning |
 |---|---|
+| `/N` | Check only (see below): expand and validate the file, write nothing. |
 | `file` | Job file, drive prefix allowed (`B:BACKUP`). `.SUB` is added when no type is given. |
 | `parm1` … `parm9` | Replace `$1` … `$9` in the file. Missing parameters expand to nothing. Each is used up to 32 characters. |
 
@@ -190,7 +191,8 @@ B>MSUB
 
 MSUB SUB ORCHESTRATOR VER 1.0
 
-USAGE: MSUB file[.SUB] [parm1 parm2 ...]
+USAGE: MSUB [/N] file[.SUB] [parm1 parm2 ...]
+  /N  check only: expand and validate the file, write nothing
 ```
 
 | | DR `SUBMIT` | `MSUB` |
@@ -199,6 +201,36 @@ USAGE: MSUB file[.SUB] [parm1 parm2 ...]
 | Run from inside a running job | replaces `$$$.sub` (rest of the outer job is lost) | pushes on top: the outer job continues afterwards |
 | Errors | `Error On Line n` | `ERROR: <reason> FILE.SUB, line n`. Nothing is written. |
 | Limits | 125 chars per line | 125 chars per line, 64 lines, 128 records in `$$$.sub` |
+
+### MSUB /N (check only)
+
+`MSUB /N job p1 p2` runs the same load as a real run and reports, without
+writing `$$$.sub` or starting the CCP:
+
+```
+B>MSUB /N JOB A B
+
+MSUB SUB ORCHESTRATOR VER 1.0
+
+Checking JOB.SUB
+
+  line 2: DIR A
+  line 3: B:
+  line 5: TYPE B ^C
+
+WARNING: line 3: drive/user change ends the $$$.SUB chain,
+         the commands after it will not run. Use B:PROG instead.
+OK: 3 commands = 3 of 128 records. Nothing written.
+```
+
+| Check | Result |
+|---|---|
+| file missing / empty | `ERROR`, nothing listed |
+| line over 125 chars, more than 64 lines, bad `^x` | `ERROR` with the source line number |
+| expanded lines | listed with their source line (`^C` shown as `^C`), so `$n` substitution can be verified |
+| a line that is only `X:` or `USER n` | `WARNING`: it ends the `$$$.sub` chain (see *Drives and user areas*) |
+| records: existing `$$$.sub` + new commands | `ERROR` above 128 (the CCP reads one extent). The existing count only applies when MSUB runs inside a job. |
+| CCP not recognised | `WARNING`: a real run would write `$$$.sub` but not start it |
 
 `MSUB` can be used inside `.sub` files, in `E` entries and in other `MSUB`
 jobs to build nested jobs.
@@ -259,6 +291,7 @@ Reusable CP/M-86 library for writing `$$$.sub` submit files.
 | `sub_open` | `int sub_open(int flags)` | `SUB_CREATE`: delete any `$$$.sub` and create it. `SUB_APPEND`: open it and push on top of the records already there (creates it if absent). Returns 0 / -1. |
 | `sub_append` | `int sub_append(char *cmd)` | Push one 128-byte record (command uppercased, max 125 chars). Fails once the file holds 128 records. Returns 0 / -1. |
 | `sub_close` | `int sub_close(void)` | Close. Returns 0 / -1. |
+| `sub_records` | `int sub_records(void)` | Records in the existing `$$$.sub` (0 if none). Opens it read-only, writes nothing. |
 | `sub_abort` | `int sub_abort(void)` | Undo everything since `sub_open`: delete the file if it was created, else restore its record count. Returns 0 / -1. |
 | `sub_delete` | `int sub_delete(void)` | Delete `$$$.sub` if present. |
 | `sub_exit` | `void sub_exit(void)` | Set the CCP submit flag and warm boot (BDOS 0): the CCP runs the top record. Does not return. |
@@ -271,6 +304,7 @@ Reusable CP/M-86 library for writing `$$$.sub` submit files.
 | `sub_name` | `char *sub_name(void)` | File actually opened, e.g. `B:BACKUP.SUB`. |
 | `sub_errmsg` | `char *sub_errmsg(int err)` | Message for a `SUBERR_*` code; the file name follows it. |
 | `sub_errline` | `int sub_errline(void)` | Source line of the last error, 0 if none. |
+| `sub_lineno` | `int sub_lineno(int i)` | Source line number of loaded line `i`. |
 | `sub_readln` | `int sub_readln(FILE *fp, char *buf, int size)` | Read one text line (CR LF, LF or CR end, stops at `^Z`). Returns its length, `SUB_RD_EOF`, or `SUB_RD_LONG` if it did not fit. Also used for `.dat` files. |
 
 Typical use (this is all of `MSUB`):
