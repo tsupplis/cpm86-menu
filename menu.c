@@ -436,7 +436,7 @@ reload:
                     /* C! : delete any stale $$$.sub, then chain clean */
                     sub_delete();
                 }
-                p_chain(items[sel].cmd);  /* does not return on success */
+                p_chain(items[sel].cmd, type == MTYPE_C); /* no return on success */
                 return 0;                 /* failure fallback */
             }
 

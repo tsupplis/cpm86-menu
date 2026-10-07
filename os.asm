@@ -8,6 +8,7 @@ dataseg ends
 	assume	cs:codeseg, ds:dataseg
     extrn memset_:near
     bss scb_pb_:word,257
+    bss chainbuf:byte,128
 ;
 
 	    public	setcurdrv_  
@@ -321,12 +322,38 @@ xst_exit:
 xstatline_  endp
 
 ;
-; p_chain: BDOS fn 47 (0x2F) -- chain to program.
-; Writes the command string into the CP/M command tail at 0080h, then
-; calls BDOS fn 47 with the chain flag DL=0xFF (adopt current drive/user).
+; setsub: set the CCP submit-mode flag MDSUBE so that the warm-boot path
+; (WBOOT -> CCPHOT, which does not re-run BDOS fn 13) processes $$$.SUB.
+; MDSUBE lives at offset 0805h of the CCP segment, which on CP/M-86 1.1
+; is the single CCP/BDOS/BIOS load segment (e.g. 0051h), NOT segment 0.
+; BDOS fn 49 returns with ES = that segment. Only done for BDOS 22h, and
+; skipped if fn 49 returns 0FFh (not implemented, e.g. under emu2).
+; Clobbers AX,BX,CX,DX,ES.
+;
+setsub	proc	near
+	mov	cx,0Ch			; return version number
+	int	0E0h
+	cmp	ax,22h
+	jnz	setsub_end
+	mov	cx,31h			; get system data address -> ES = CCP seg
+	int	0E0h
+	cmp	al,0FFh			; not implemented (e.g. emu2): ES invalid
+	jz	setsub_end
+	mov	byte ptr es:[0805h],0FFh ; MDSUBE
+setsub_end:
+	ret
+setsub	endp
+
+;
+; p_chain: BDOS fn 47 -- chain to program.
+; MCHAIN copies a NUL-terminated command line from the current DMA
+; address into the CCP command buffer; the CCP hot-start path does not
+; upcase it, so the command is upcased here into chainbuf, which is then
+; made the DMA buffer. If submode is non-zero, MDSUBE is set so the CCP
+; processes $$$.SUB after the chained program exits.
 ; Does not return on success.
 ;
-; void p_chain(char *cmd)   -- cmd is a near pointer in DS
+; void p_chain(char *cmd, int submode)
 ;
 	public	p_chain_
 p_chain_	proc	near
@@ -335,58 +362,58 @@ p_chain_	proc	near
 	push	si
 	push	di
 	push	es
-	; set ES:DI to 0000:0080h (command tail in low memory)
-	xor	ax,ax
-	mov	es,ax
-	mov	di,80h
-	; copy cmd (DS:SI) into ES:[81h..], building length in CX
+	cld
+	push	ds
+	pop	es
 	mov	si,word ptr 4[bp]
-	xor	cx,cx
+	mov	di,offset chainbuf
+	mov	cx,127
 p_chain_copy:
-	mov	al,byte ptr [si]
+	lodsb
 	or	al,al
 	jz	p_chain_done
-	mov	byte ptr es:[di+1],al	; write at 81h+cx
-	inc	si
-	inc	cx
-	inc	di
-	cmp	cx,7fh			; max 127 chars
-	jl	p_chain_copy
+	cmp	al,'a'
+	jb	p_chain_store
+	cmp	al,'z'
+	ja	p_chain_store
+	sub	al,20h
+p_chain_store:
+	stosb
+	loop	p_chain_copy
 p_chain_done:
-	mov	byte ptr es:[80h],cl	; length byte at 0080h
+	mov	byte ptr [di],0
+	mov	dx,ds
+	mov	cx,33h			; set DMA segment = DS
+	int	0E0h
+	mov	dx,offset chainbuf
+	mov	cx,1Ah			; set DMA offset = chainbuf
+	int	0E0h
+	cmp	word ptr 6[bp],0
+	jz	p_chain_go
+	call	setsub
+p_chain_go:
+	mov	cx,2Fh			; P_CHAIN = BDOS fn 47
+	xor	dx,dx
+	int	0E0h			; does not return on success
 	pop	es
 	pop	di
 	pop	si
 	pop	bp
-	mov	cx,02Fh			; P_CHAIN = BDOS fn 47
-	mov	dl,0ffh			; chain flag: adopt current drive/user
-	xor	dh,dh
-	int	0e0h			; does not return on success
-	ret				; return on failure
+	ret
 p_chain_	endp
 
 ;
-; sub_exit: set MDSUBE flag at absolute 0x0805 (CCP data segment),
-; then perform BDOS fn 0 (system reset) so CCP picks up $$$     .SUB.
-;
-; Mirrors scd.a86 from the SUBMIT command:
-;   mdsube equ 0805h  -- absolute address in CCP data segment
-;   mov es:byte ptr mdsube, 0FFh
-;   mov cl, 0 / int 224
+; sub_exit: set MDSUBE in the CCP segment (see setsub), then BDOS fn 0
+; (system reset) so the CCP picks up $$$.SUB. Mirrors scd.a86 (SUBMIT),
+; which writes savess:0805h with savess = CCP segment.
 ;
 	public	sub_exit_
 sub_exit_	proc	near
-	push	bp
-	mov	bp,sp
-	push	es
-	xor	ax,ax
-	mov	es,ax			; ES = segment 0 (absolute addressing)
-	mov	byte ptr es:[0805h],0ffh ; MDSUBE at absolute 0x0805
-	pop	es
-	pop	bp
+	call	setsub
 	xor	cx,cx			; BDOS fn 0 (system reset)
 	xor	dx,dx
-	int	0e0h
+	int	0E0h
+	ret
 sub_exit_	endp
 
 codeseg	ends
