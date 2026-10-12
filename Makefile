@@ -14,24 +14,13 @@ CFLAGS = -I. +F +0
 all: menu.cmd msub.cmd hello.cmd
 
 # --------------------------------------------------------------------
-# Libraries
-# --------------------------------------------------------------------
-util.lib: conio.o os.o
-	rm -f util.lib
-	$(LIB) util.lib conio.o os.o
-
-sub.lib: sub.o subfile.o
-	rm -f sub.lib
-	$(LIB) sub.lib sub.o subfile.o
-
-# --------------------------------------------------------------------
 # Link targets
 # --------------------------------------------------------------------
-menu.cmd: menu.o menudat.o util.lib sub.lib
-	$(LD) -o $@ menu.o menudat.o util.lib sub.lib $(LDFLAGS)
+menu.cmd: menu.o menudat.o util.lib 
+	$(LD) -o $@ menu.o menudat.o util.lib $(LDFLAGS)
 
-msub.cmd: msub.o util.lib sub.lib
-	$(LD) -o $@ msub.o util.lib sub.lib $(LDFLAGS)
+msub.cmd: msub.o util.lib
+	$(LD) -o $@ msub.o util.lib $(LDFLAGS)
 
 hello.cmd: hello.o util.lib
 	$(LD) -o $@ hello.o util.lib $(LDFLAGS)
@@ -80,7 +69,7 @@ msub.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_SUB)
 # Utility
 # --------------------------------------------------------------------
 clean:
-	$(RM) cpmtest.img *.o *.lib menu.cmd msub.cmd hello.cmd msub.zip
+	$(RM) cpmtest.img *.o menu.cmd msub.cmd hello.cmd msub.zip
 
 test: cpm86test
 

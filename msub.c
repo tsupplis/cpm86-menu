@@ -37,7 +37,7 @@ static void putline(s)
 {
     for (; *s != '\0'; s++) {
         if (*s < ' ') {                 /* ^A..^Z made by ^x in the file */
-            cputc('^');
+            cputc((char)'^');
             cputc((char)(*s + '@'));
         } else {
             cputc(*s);
