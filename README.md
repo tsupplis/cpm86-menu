@@ -273,14 +273,20 @@ jobs to build nested jobs.
 
 Requires the `cpm86-crossdev` toolchain (`aztec42_cc`, `aztec42_link`, etc.).
 
+The project also depends on the `util` library from
+[cpm86-hacking](https://github.com/tsupplis/cpm86-hacking). The following
+files are taken from there and kept in this directory; they are not built here:
+
+| File | Purpose |
+|------|---------|
+| `util.lib` | Library linked into `menu.cmd`, `msub.cmd` and `hello.cmd` |
+| `util.h`, `conio.h`, `debug.h`, `dirent.h`, `epoch.h`, `gfx.h`, `sub.h` | Headers used at compile time |
+
 ```
 make          # builds menu.cmd, msub.cmd and hello.cmd
-make dist     # msub.zip: menu.cmd, msub.cmd, hello.cmd, sample .dat/.sub,
-              # soak test files (they expect to run from B: with STAT on A:)
-make sub.lib  # builds the $$$.sub library independently
+make dist     # msub.zip: menu.cmd, msub.cmd, hello.cmd, sample .dat/.
 make clean    # removes all generated files
 ```
-
 
 ## Companion projects
 
@@ -294,9 +300,10 @@ make clean    # removes all generated files
 | [cpm86-ports](https://github.com/tsupplis/cpm86-ports)       | CP/M-86 application ports in C and assembler |
 | [cpm86-vi](https://github.com/tsupplis/cpm86-vi)             | STevie vi port for CP/M-86 and PC-DOS 1.1 |
 | [cpm86-msbasic](https://github.com/tsupplis/cpm86-msbasic)   | A recreaction of msbasic-86 for CP/M-86 and PC-DOS 1.1 from gwbasic sources |
-| [cpm86-menu](https://github.com/tsupplis/cpm86-menu)   | A submit replacement and a menu system for submit orchestration |
+| [cpm86-menu](https://github.com/tsupplis/cpm86-menu)   | A submit replacement and a menu system for submit orchestration for CP/M-86 1.1 |
+| [cpm86-make](https://github.com/tsupplis/cpm86-make)   | A simple submit based make tool for CP/M-86 1.1 |
 | [pcdos11-hacking](https://github.com/tsupplis/pcdos11-hacking) | PC-DOS 1.1 distribution, tools and notes |
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE.md).
