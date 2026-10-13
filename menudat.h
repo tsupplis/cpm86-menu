@@ -15,11 +15,19 @@
 #define MTYPE_C     5   /* C  : chain to cmd, re-append MENU   */
 #define MTYPE_CNR   6   /* C! : chain to cmd, no MENU re-append */
 
+#define MAX_USER    15  /* highest user area for the @n suffix */
+
+/* Diagnostic levels for the MCHECK build of load_menu (see menudat.c) */
+#define MDIAG_INF   0
+#define MDIAG_WRN   1   /* accepted, but altered (cut, ignored directive) */
+#define MDIAG_ERR   2   /* line not understood, skipped */
+
 typedef struct {
     char label[71];
     char cmd[MAX_CMD + 1]; /* command / dat file / submit file+params */
     int  type;          /* MTYPE_*                                  */
     int  pause;         /* EP/SP/CP: wait for a key before the menu redraws */
+    int  user;          /* @n suffix: run in user area n; -1 = none */
 } MenuItem;
 
 /*

@@ -9,6 +9,26 @@ int  menu_quit_disabled           = 0;
 int  menu_has_snr                 = 0;
 char menu_back[MAX_CMD + 1]       = "";
 
+/*
+ * MCHECK build (mcheck.cmd): the same parser, plus a diagnostics hook.
+ * menu_diag(lineno, level, message, text) is called for every line that
+ * is skipped (MDIAG_ERR) or accepted in altered form (MDIAG_WRN).
+ * The normal MENU build compiles all of this away.
+ */
+#ifdef MCHECK
+int (*menu_diag)() = 0;
+static char raw[256];
+#define DIAG(lv, msg)  if (menu_diag) (*menu_diag)(lineno, lv, msg, raw)
+#define SAVELINE()     scopy(raw, buf, 255)
+#define NOLINE()       raw[0] = '\0'
+#define FULL           continue
+#else
+#define DIAG(lv, msg)
+#define SAVELINE()
+#define NOLINE()
+#define FULL           break
+#endif
+
 /* ------------------------------------------------------------------ */
 /* Internal helpers                                                     */
 /* ------------------------------------------------------------------ */
@@ -47,6 +67,17 @@ static void scopy(dst, src, max)
     dst[i] = '\0';
 }
 
+#ifdef MCHECK
+static int slen(p)
+    char *p;
+{
+    int n;
+    for (n = 0; p[n] != '\0'; n++)
+        ;
+    return n;
+}
+#endif
+
 /* ------------------------------------------------------------------ */
 
 int load_menu(items, max, filename)
@@ -63,7 +94,10 @@ int load_menu(items, max, filename)
     int   count;
     int   type;
     int   pause;
+    int   user;
     int   len;
+    int   n;
+    int   lineno;
 
     /* Reset globals for this load */
     menu_quit_disabled = 0;
@@ -71,15 +105,25 @@ int load_menu(items, max, filename)
     menu_back[0]       = '\0';
     scopy(menu_title, default_title, MAX_TITLE);
 
+    lineno = 0;
+    NOLINE();
+
     fp = fopen(filename, "r");
-    if (fp == 0)
+    if (fp == 0) {
+        DIAG(MDIAG_ERR, "cannot open the menu file");
         return 0;
+    }
 
     count = 0;
     /* CR LF, LF or CR line ends; a line too long for buf is skipped */
     while ((len = sub_readln(fp, buf, sizeof(buf))) != SUB_RD_EOF) {
-        if (len == SUB_RD_LONG)
+        lineno++;
+        if (len == SUB_RD_LONG) {
+            NOLINE();
+            DIAG(MDIAG_ERR, "line longer than 255 characters, skipped");
             continue;
+        }
+        SAVELINE();
 
         /* skip blank lines and ; comments */
         p = ltrim(buf);
@@ -90,8 +134,16 @@ int load_menu(items, max, filename)
         if (p[0] == 'T' && (p[1] == ' ' || p[1] == '\t')) {
             label = ltrim(p + 2);
             rtrim(label);
-            if (*label != '\0')
+            if (*label != '\0') {
+#ifdef MCHECK
+                if (slen(label) > MAX_TITLE) {
+                    DIAG(MDIAG_WRN, "title longer than 70 characters, cut");
+                }
+#endif
                 scopy(menu_title, label, MAX_TITLE);
+            } else {
+                DIAG(MDIAG_WRN, "empty title, default title kept");
+            }
             continue;
         }
 
@@ -105,9 +157,39 @@ int load_menu(items, max, filename)
         if (p[0] == 'M' && p[1] == '!' && (p[2] == ' ' || p[2] == '\t')) {
             cmd = ltrim(p + 3);
             rtrim(cmd);
-            if (*cmd != '\0')
+            if (*cmd != '\0') {
                 scopy(menu_back, cmd, MAX_CMD);
+            } else {
+                DIAG(MDIAG_WRN, "M! without a file name, ignored");
+            }
             continue;
+        }
+
+        /* ---- @n suffix glued to the type: E@4 label | cmd ---------- */
+        /* Valid: 1- or 2-char type token, '@', 1-2 digits 0..MAX_USER, */
+        /* then a blank. The @n is blanked so the type tests see "E ".   */
+        user = -1;
+        for (n = 0; n <= 2 && p[n] != '\0' && p[n] != ' ' && p[n] != '\t' && p[n] != '@'; n++)
+            ;
+        if (n >= 1 && n <= 2 && p[n] == '@') {
+            int d = n + 1;
+            if (p[d] < '0' || p[d] > '9') {
+                DIAG(MDIAG_ERR, "bad @n suffix: expected @ and a user number 0-15");
+                continue;   /* bare @ or letter -- malformed, skip */
+            }
+            user = p[d++] - '0';
+            if (p[d] >= '0' && p[d] <= '9')
+                user = user * 10 + (p[d++] - '0');
+            if (user > MAX_USER) {
+                DIAG(MDIAG_ERR, "user number over 15 in @n suffix");
+                continue;
+            }
+            if (p[d] != ' ' && p[d] != '\t') {
+                DIAG(MDIAG_ERR, "bad @n suffix: expected a blank after the number");
+                continue;   /* @4A, @123 -- malformed, skip */
+            }
+            while (n < d)
+                p[n++] = ' ';
         }
 
         /* ---- Entry directives: determine type --------------------- */
@@ -122,38 +204,63 @@ int load_menu(items, max, filename)
         else if (p[0]=='M' &&              (p[1]==' '||p[1]=='\t')) { type=MTYPE_M;   p+=2; }
         else if (p[0]=='C' && p[1]=='!' && (p[2]==' '||p[2]=='\t')) { type=MTYPE_CNR; p+=3; }
         else if (p[0]=='C' &&              (p[1]==' '||p[1]=='\t')) { type=MTYPE_C;   p+=2; }
-        else continue;  /* unknown prefix -- skip */
+        else {
+            DIAG(MDIAG_ERR, "unknown line type, skipped");
+            continue;  /* unknown prefix -- skip */
+        }
+
+        /* the hop is only for E and S: chain runs before the relay, M loads in-process */
+        if (user >= 0 && type != MTYPE_E && type != MTYPE_ENR
+                      && type != MTYPE_S && type != MTYPE_SNR) {
+            DIAG(MDIAG_ERR, "@n is only valid on E, E!, EP, S, S! and SP");
+            continue;
+        }
 
         /* ---- find pipe separator ---------------------------------- */
         pipe = p;
         while (*pipe != '\0' && *pipe != '|')
             pipe++;
-        if (*pipe != '|')
+        if (*pipe != '|') {
+            DIAG(MDIAG_ERR, "missing '|' between label and command");
             continue;   /* malformed -- skip */
+        }
 
         /* split at pipe, trim both sides */
         *pipe = '\0';
         label = ltrim(p);    rtrim(label);
         cmd   = ltrim(pipe + 1); rtrim(cmd);
 
-        if (*label == '\0' || *cmd == '\0')
+        if (*label == '\0' || *cmd == '\0') {
+            DIAG(MDIAG_ERR, "empty label or command");
             continue;   /* empty label or cmd -- skip */
+        }
 
         /* a cut command would run something else -- skip it */
         {
             int n;
             for (n = 0; cmd[n] != '\0'; n++) ;
-            if (n > MAX_CMD)
+            if (n > MAX_CMD) {
+                DIAG(MDIAG_ERR, "command longer than 125 characters");
                 continue;
+            }
         }
 
-        if (count >= max)
-            break;      /* array full */
+        if (count >= max) {
+            DIAG(MDIAG_ERR, "too many entries (maximum 15), entry ignored");
+            FULL;       /* array full */
+        }
+
+#ifdef MCHECK
+        if (slen(label) > MAX_LABEL) {
+            DIAG(MDIAG_WRN, "label longer than 70 characters, cut");
+        }
+#endif
 
         scopy(items[count].label, label, MAX_LABEL);
         scopy(items[count].cmd,   cmd,   MAX_CMD);
         items[count].type = type;
         items[count].pause = pause;
+        items[count].user  = user;
 
         if (type == MTYPE_SNR)
             menu_has_snr = 1;
