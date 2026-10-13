@@ -1,5 +1,5 @@
 /*
- * msub.c -- MSUB, a SUBMIT replacement built on sub.lib.
+ * msub.c -- MSUB, a SUBMIT replacement built on util.lib.
  * Licensed under the MIT license. See LICENSE file in the project root.
  *
  * MSUB [/N] file[.SUB] [parm1 parm2 ...]
