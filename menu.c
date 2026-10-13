@@ -318,6 +318,33 @@ static void build_menucmd(menucmd, datfile, cmddrv, sel, pause)
     menucmd[j] = '\0';
 }
 
+/*
+ * Build "[D:]text n" for a stack record, e.g. "USER 4" or "B:MCLEAN 4".
+ * drv: drive prefix (1=A..16=P), 0 = none. n is 0..99.
+ */
+static void numrec(buf, drv, text, n)
+    char *buf;
+    int   drv;
+    char *text;
+    int   n;
+{
+    int i;
+    int j;
+
+    j = 0;
+    if (drv > 0) {
+        buf[j++] = (char)('A' + drv - 1);
+        buf[j++] = ':';
+    }
+    for (i = 0; text[i] != '\0'; i++)
+        buf[j++] = text[i];
+    buf[j++] = ' ';
+    if (n >= 10)
+        buf[j++] = (char)('0' + n / 10);
+    buf[j++] = (char)('0' + n % 10);
+    buf[j] = '\0';
+}
+
 /* ------------------------------------------------------------------ */
 
 int main(argc, argv)
@@ -466,6 +493,15 @@ reload:
                 int i;
                 int bad;
                 int opened;
+                int home;       /* user area MENU runs in */
+                int hop;        /* run the entry in user area items[sel].user */
+                int altbefore;  /* records already in $$$.SUB of user n */
+                int need;       /* records to push, for the capacity check */
+                char rec[32];   /* USER / MCLEAN stack record */
+
+                /* @n equal to the current user is no hop at all */
+                home = bdos(32, 0xFF) & 0xFF;
+                hop  = (items[sel].user >= 0 && items[sel].user != home);
 
                 /* E, S and C re-launch MENU, except in an exit-only
                    sub-menu: a .dat with an M! directive and no S! entry */
@@ -496,13 +532,62 @@ reload:
                     return 0;
                 }
 
+                /* User hop: the CCP only reads $$$.SUB of its own user, and
+                   "USER n" does not warm boot, so the stack of user n is read
+                   next. Write that stack first (in user n):
+                       USER home (bottom), then the command or the S file.
+                   The home stack below ends with MCLEAN n, USER n (top). */
+                if (hop) {
+                    /* Both stacks must fit in 128 records before anything is
+                       written: a failure after the first one cannot always be
+                       undone. sub_records() writes nothing. */
+                    need = (remenu ? 1 : 0) + 2;
+                    if (subact == 1 && sub_records() + need > 128) {
+                        menu_error("Too many commands in $$$.SUB", (char *)0, sel, has_back);
+                        continue;
+                    }
+                    bdos(32, items[sel].user);
+                    altbefore = sub_records();
+                    need = 1 + ((type == MTYPE_S || type == MTYPE_SNR) ? n : 1);
+                    if (subact == 1 && altbefore + need > 128) {
+                        bdos(32, home);
+                        menu_error("Too many commands in $$$.SUB (user area)", (char *)0, sel, has_back);
+                        continue;
+                    }
+                    numrec(rec, 0, "USER", home);
+                    opened = (sub_open(subact == 1 ? SUB_APPEND : SUB_CREATE) == 0);
+                    bad = !opened;
+                    if (!bad)
+                        bad = (sub_append(rec) != 0);
+                    if (!bad && (type == MTYPE_S || type == MTYPE_SNR))
+                        bad = (sub_pushall() != 0);
+                    else if (!bad)
+                        bad = (sub_append(items[sel].cmd) != 0);
+                    if (!bad)
+                        bad = (sub_close() != 0);
+                    if (bad && opened)
+                        sub_abort();     /* before leaving user n */
+                    bdos(32, home);
+                    if (bad) {
+                        menu_error("Cannot write $$$.SUB in user area", (char *)0, sel, has_back);
+                        continue;
+                    }
+                }
+
                 /* records are a stack: first written = bottom = runs last.
                    Inside a SUBMIT job push on top of what is left of it. */
                 opened = (sub_open(subact == 1 ? SUB_APPEND : SUB_CREATE) == 0);
                 bad = !opened;
                 if (!bad && remenu)
                     bad = (sub_append(menucmd) != 0);
-                if (!bad && (type == MTYPE_S || type == MTYPE_SNR)) {
+                if (!bad && hop) {
+                    numrec(rec, cmddrv, "MCLEAN", items[sel].user);
+                    bad = (sub_append(rec) != 0);
+                    if (!bad) {
+                        numrec(rec, 0, "USER", items[sel].user);
+                        bad = (sub_append(rec) != 0);
+                    }
+                } else if (!bad && (type == MTYPE_S || type == MTYPE_SNR)) {
                     bad = (sub_pushall() != 0);
                 } else if (!bad && (type == MTYPE_E || type == MTYPE_ENR)) {
                     bad = (sub_append(items[sel].cmd) != 0);
@@ -512,6 +597,14 @@ reload:
                 if (bad) {
                     if (opened)
                         sub_abort();     /* outer job left as it was */
+                    if (hop && (subact != 1 || altbefore == 0)) {
+                        /* the stack written in user n is ours alone: remove
+                           it. With a live job there (altbefore > 0) its
+                           records cannot be taken back; see the limits. */
+                        bdos(32, items[sel].user);
+                        sub_delete();
+                        bdos(32, home);
+                    }
                     menu_error("Cannot write $$$.SUB", (char *)0, sel, has_back);
                     continue;
                 }
