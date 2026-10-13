@@ -11,6 +11,8 @@ flowchart LR
         MC["menu.c<br/>UI, launch"]
         MD["menudat.c<br/>.dat parser"]
         MS["msub.c<br/>SUBMIT replacement"]
+        MK["mcheck.c<br/>.dat checker"]
+        ML["mclean.a86<br/>empty $$$.SUB remover"]
     end
     subgraph ULS["util.lib sources (in cpm86-hacking)"]
         SC["sub.c<br/>$$$.SUB stack"]
@@ -31,16 +33,27 @@ flowchart LR
     MS --> MSC["msub.cmd"]
     UL --> MSC
     LC --> MSC
+    MK --> MKC["mcheck.cmd"]
+    MD -- "-DMCHECK" --> MKC
+    UL --> MKC
+    LC --> MKC
+    ML -- "ASM86 + GENCMD 8080" --> MLC["mclean.cmd"]
 ```
 
 `util.lib` is built in `../cpm86-hacking` and copied into this workspace. The headers
-(`sub.h`, `conio.h`, `menudat.h`) are copied alongside it.
+(`sub.h`, `conio.h`) are copied alongside it; `menudat.h` is local.
+`mcheck.cmd` compiles `menudat.c` a second time with `-DMCHECK`, which adds a
+`menu_diag` hook that reports skipped and altered lines. In the normal build
+the hook is compiled away. `mclean.cmd` is assembler in the 8080 model (one
+segment, a 32-byte stack inside the image).
 
 | File | Key functions used by menu / msub |
 |---|---|
-| `menu.c` | `main`, `draw_screen`, `draw_entry`, `build_menucmd`, `menu_error` |
+| `menu.c` | `main`, `draw_screen`, `draw_entry`, `build_menucmd`, `numrec` (`USER n` / `MCLEAN n` records), `menu_error` |
 | `msub.c` | `main`: banner, usage, `/N` check, `sub_load` → push → `sub_exit` |
-| `menudat.c` | `load_menu` → `items[]`, `menu_title`, `menu_back`, `menu_quit_disabled`, `menu_has_snr`; uses `sub_readln` |
+| `menudat.c` | `load_menu` → `items[]`, `menu_title`, `menu_back`, `menu_quit_disabled`, `menu_has_snr`; uses `sub_readln`; parses the `@n` suffix |
+| `mcheck.c` | `main`: `load_menu` with the `menu_diag` hook, prints `INF:` / `WRN:` / `ERR:` |
+| `mclean.a86` | `MCLEAN n`: user n, open `$$$.SUB`, delete if 0 records, restore the user |
 | `sub.c` | `sub_open` (CREATE / APPEND), `sub_append`, `sub_close`, `sub_records`, `sub_abort`, `sub_delete` |
 | `subfile.c` | `sub_load`, `sub_line`, `sub_lineno`, `sub_pushall`, `sub_name`, `sub_errmsg`, `sub_errline`, `sub_readln` |
 | `os.asm` | CCP gate: `ccpseg`, `setsub`, `sub_exit`, `p_chain`, `sub_active`, `sub_cmddrv`<br/>OS / hardware: `getcurdrv`, `setcurdrv`, `getccpdrv`, `bdosx`, `delay`, `bioskey`, `pckey`, `xstatline` |
@@ -86,12 +99,18 @@ flowchart TD
     S0{"S / SP / S! ?"} -- yes --> RS["sub_load<br/>read + expand"]
     RS -- error --> ER["menu_error<br/>stay in menu"]
     RS --> M1
-    S0 -- no --> M1["remenu = E S C, not exit-only<br/>menucmd = [D:]MENU D:dat /n [/P]"]
+    S0 -- no --> M1["remenu = E S C, not exit-only<br/>menucmd = [D:]MENU D:dat /n [/P]<br/>home = BDOS 32 get<br/>hop = @n set and n ≠ home"]
     M1 --> C0{"C / C! and not remenu ?"}
     C0 -- yes --> CH["p_chain(cmd)<br/>no MENU record"]
-    C0 -- no --> OP["sub_open<br/>APPEND if subact = 1, else CREATE"]
-    OP --> PU["push: menucmd (if remenu)<br/>then sub_pushall / cmd"]
-    PU -- "write fails" --> AB["sub_abort<br/>menu_error"]
+    C0 -- no --> H0{"hop ?"}
+    H0 -- yes --> CK["capacity check<br/>sub_records() in both users"]
+    CK -- "over 128" --> ER2["menu_error<br/>nothing written"]
+    CK --> AL["BDOS 32 = n<br/>sub_open, push USER home,<br/>then cmd / sub_pushall, sub_close<br/>BDOS 32 = home"]
+    AL -- "write fails" --> AB2["sub_abort<br/>menu_error"]
+    AL --> OP
+    H0 -- no --> OP["sub_open<br/>APPEND if subact = 1, else CREATE"]
+    OP --> PU["push: menucmd (if remenu)<br/>then sub_pushall / cmd<br/>(hop: MCLEAN n, USER n instead)"]
+    PU -- "write fails" --> AB["sub_abort<br/>if hop: delete the user n file<br/>menu_error"]
     PU --> CL["sub_close"]
     CL --> W{"C / CP ?"}
     W -- yes --> PC["p_chain(cmd, 1)"]
@@ -99,6 +118,10 @@ flowchart TD
 ```
 
 Exit-only rule: a `.dat` with `M!` and no `S!` entry → `remenu = 0`.
+
+The hop branch (`@n`, E and S types only) writes the user-n stack first so a
+failure there leaves nothing in the home user. The records and the CCP side of
+it are in [submit-flow.md](submit-flow.md), section 10.
 
 ## 5. CCP access (os.asm)
 
@@ -142,6 +165,14 @@ flowchart LR
 | `cmd` | 126 | command, `.sub` + params, or `.dat` |
 | `type` | int | `MTYPE_E` `ENR` `S` `SNR` `M` `C` `CNR` |
 | `pause` | int | 1 for `EP` / `SP` / `CP` |
+| `user` | int | `@n` suffix, 0 to 15; `-1` = none |
+
+**Hop records** (`numrec` in `menu.c`)
+
+```text
+user n stack (bottom to top):   USER <home>   <cmd | S lines>
+home stack (bottom to top):     [outer job]  [MENU ...]  [<drv>:]MCLEAN n  USER n
+```
 
 ## 7. Limits
 
@@ -152,3 +183,5 @@ flowchart LR
 | command | 125 | entry skipped |
 | `S` file | 64 lines × 125 chars | error, stay in menu |
 | `$$$.SUB` | 128 records | write fails → `sub_abort` |
+| hop: both stacks | 128 records each | checked before writing, `menu_error` |
+| `@n` | 0 to 15 | line skipped (`ERR:` in MCHECK) |

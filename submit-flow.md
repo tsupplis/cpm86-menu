@@ -361,7 +361,8 @@ it fall back to user 0, and only for files with the SYS attribute. Therefore:
   line. The relay does not change that.
 - If `MCLEAN` does not run (for example the chain ended earlier), the empty file
   stays in user `n` until the next hop there creates a new one.
-- A command that is not found makes the CCP print `cmd?` and go back to
-  `CCPLOP`, which reads `$$$.SUB` again; the stack is not lost
-  (`COMERR` in `ccp.a86`).
+- A command that is not found (`OPENW` fails in `TRNCMK`) makes the CCP print
+  `cmd?` through `COMERR` and go back to `CCPLOP`, which reads `$$$.SUB` again;
+  the stack is not lost. A program that exists only in user 0, without the SYS
+  attribute, is "not found" from user `n` in the same way.
 - There is no drive version of this. A drive change in a chain is not supported.
