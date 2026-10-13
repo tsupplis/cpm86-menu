@@ -255,8 +255,8 @@ The `MENU` line has to work from wherever the CCP is when it pops it.
   checks: fn 12 = `22h`, fn 49 does not return `0FFh` (not implemented, for
   example under emu2), and the CCP **signature** matches: `'CMD'` at `0800h`
   and `'$$$'` at `0807h` (bit 7 masked). These are the labels `MENUSIG` and
-  `SUBNAM` in `ccp.a86`, `ccpexp.a86` and `ccpnew.a86`, which all share this
-  layout. On any other CCP build the signature does not match. `menu.cmd`
+  `SUBNAM` in `ccp.a86` and `ccpexp.a86`; `ccporg.a86` has no such labels but
+  the same layout. On any other CCP build the signature does not match. `menu.cmd`
   then writes nothing into the CCP: the commands are still in `$$$.SUB`, but
   nothing triggers the CCP to run them.
 - An `S` file is fully read and checked **before** `$$$.SUB` is created. Any

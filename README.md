@@ -166,8 +166,7 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
   a bare drive change (`B:`) or `USER n` therefore ends the `$$$.sub` chain:
   the remaining lines and the `MENU` re-launch are not run. Use a
   drive-prefixed command instead (`E Prog | B:PROG`), which loads from `B:`
-  without changing the CCP's current drive. A possible way to support real
-  drive/user switching is described in [drive-user.md](drive-user.md).
+  without changing the CCP's current drive.
 
 
 ## Keys
@@ -266,7 +265,6 @@ jobs to build nested jobs.
 |---|---|
 | [implementation.md](implementation.md) | Modules, startup, key loop, launch path, CCP access, data formats, limits — mostly diagrams. |
 | [submit-flow.md](submit-flow.md) | How `$$$.sub` hands commands to the CCP and loops back to `MENU`, including `MENU` inside a SUBMIT job (section 7). |
-| [drive-user.md](drive-user.md) | Proposal (not implemented) for running entries in another drive / user area. |
 
 
 ## Build

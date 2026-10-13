@@ -1,0 +1,109 @@
+;
+; MCLEAN n - delete an empty $$$.SUB in user area n (current drive).
+;
+; Written by MENU to the home stack after a user hop (E@n, S@n, ...):
+; the CCP leaves a 0-record $$$.SUB behind in user n once the last record
+; (USER home) has been popped. A file that still has records belongs to
+; a live job and is never touched.
+;
+; 8080 model (GENCMD ... 8080): CS = DS = ES = SS, base page at offset 0.
+;
+            title   'Remove empty submit file'
+
+            cseg
+            org     100h
+
+            mov     ax,cs
+            mov     ds,ax
+            mov     es,ax
+            cli
+            mov     ss,ax
+            mov     sp,offset stk + 32
+            sti
+
+; ---- parse the user number (0-15) from the command tail -------------
+            mov     bx,80h
+            mov     cl,[bx]         ; tail length
+            xor     ch,ch
+            mov     si,81h
+            xor     dx,dx           ; dl = value
+            xor     di,di           ; di = number of digits
+next_ch:
+            jcxz    parsed
+            lodsb
+            dec     cx
+            sub     al,'0'
+            cmp     al,9
+            ja      not_digit
+            inc     di
+            cmp     di,3
+            jnb     quit            ; 3 digits: not a user number
+            mov     bl,al           ; bl = digit
+            mov     al,dl
+            mov     ah,10
+            mul     ah              ; ax = value * 10
+            add     al,bl
+            mov     dl,al
+            jmp     next_ch
+not_digit:
+            cmp     di,0
+            jz      next_ch         ; still before the number: skip
+parsed:
+            cmp     di,0
+            jz      quit            ; no number
+            cmp     dl,15
+            ja      quit            ; not a user number
+            mov     bx,offset new_user
+            mov     [bx],dl
+
+; ---- remember the current user, switch to n -------------------------
+            mov     cx,32
+            mov     dx,0ffh
+            int     0E0h
+            mov     bx,offset home_user
+            mov     [bx],al
+            mov     bx,offset new_user
+            mov     dl,[bx]
+            xor     dh,dh
+            mov     cx,32
+            int     0E0h
+
+; ---- open $$$.SUB; delete it only if it has 0 records ---------------
+            mov     cx,15
+            mov     dx,offset fcb
+            int     0E0h
+            cmp     al,3
+            ja      restore         ; not found (0ffh)
+            mov     bx,offset fcb
+            mov     al,15[bx]       ; record count of the first extent
+            cmp     al,0
+            jnz     restore         ; live job: leave it alone
+            mov     cx,19
+            mov     dx,offset fcb
+            int     0E0h
+
+; ---- back to the home user ------------------------------------------
+restore:
+            mov     bx,offset home_user
+            mov     dl,[bx]
+            xor     dh,dh
+            mov     cx,32
+            int     0E0h
+quit:
+            xor     cx,cx
+            int     0E0h
+
+new_user    db      0
+home_user   db      0
+
+; FCB: current drive, '$$$     SUB', rest zero (36 bytes)
+fcb         db      0
+            db      '$$$     SUB'
+            db      0,0,0,0,0,0,0,0,0,0,0,0
+            db      0,0,0,0,0,0,0,0,0,0,0,0
+
+; program stack, 32 zero bytes that are part of the image
+            db      0               ; word alignment
+stk         db      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+            db      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+            end

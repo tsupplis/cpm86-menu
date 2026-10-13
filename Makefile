@@ -3,6 +3,8 @@ AS     = aztec42_as
 STRIP  = aztec42_sqz
 LD     = aztec42_link
 LIB    = aztec42_lib
+ASM86  = cpm86_asm86
+GENCMD = cpm86_gencmd
 LDFLAGS = -lc86
 
 # Flags common to both CP/M-86 builds
@@ -11,7 +13,7 @@ CFLAGS = -I. +F +0
 # --------------------------------------------------------------------
 # Top-level targets
 # --------------------------------------------------------------------
-all: menu.cmd msub.cmd hello.cmd
+all: menu.cmd msub.cmd hello.cmd mclean.cmd
 
 # --------------------------------------------------------------------
 # Link targets
@@ -24,6 +26,13 @@ msub.cmd: msub.o util.lib
 
 hello.cmd: hello.o util.lib
 	$(LD) -o $@ hello.o util.lib $(LDFLAGS)
+
+# MCLEAN is assembler, 8080 model (CS = DS = ES = SS)
+mclean.cmd: mclean.h86
+	$(GENCMD) $< 8080
+
+mclean.h86: mclean.a86
+	$(ASM86) $<
 
 # --------------------------------------------------------------------
 # Compile rules
@@ -39,11 +48,12 @@ os.o: os.asm
 # --------------------------------------------------------------------
 # Test image
 # --------------------------------------------------------------------
-cpmtest.img: menu.cmd msub.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub soak/*
+cpmtest.img: menu.cmd msub.cmd hello.cmd mclean.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub soak/*
 	cp cpmbase.img cpmtest.img
 	cpmcp -f ibmpc-514ss cpmtest.img menu.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img msub.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img hello.cmd 0:
+	cpmcp -f ibmpc-514ss cpmtest.img mclean.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img *.dat 0:
 	cpmcp -f ibmpc-514ss cpmtest.img batch.sub 0:
 	cpmcp -f ibmpc-514ss cpmtest.img nest.sub 0:
@@ -55,7 +65,7 @@ cpmtest.img: menu.cmd msub.cmd hello.cmd menu.dat menu1.dat menu2.dat batch.sub 
 # --------------------------------------------------------------------
 # Programs, the sample menus/jobs they use (HELLO is the demo program the
 # samples launch), and the soak test. -j: flat archive, no soak/ folder.
-DIST_CMD  = menu.cmd msub.cmd hello.cmd
+DIST_CMD  = menu.cmd msub.cmd hello.cmd mclean.cmd
 DIST_DAT  = menu.dat menu1.dat menu2.dat soak/soak.dat
 DIST_SUB  = batch.sub nest.sub soak/soak.sub soak/soaka.sub soak/soakb.sub soak/soakm.sub
 
@@ -69,7 +79,7 @@ msub.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_SUB)
 # Utility
 # --------------------------------------------------------------------
 clean:
-	$(RM) cpmtest.img *.o menu.cmd msub.cmd hello.cmd msub.zip
+	$(RM) cpmtest.img *.o *.h86 *.lst *.sym menu.cmd msub.cmd hello.cmd mclean.cmd msub.zip
 
 test: cpm86test
 
