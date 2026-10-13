@@ -1,0 +1,4 @@
+; runs in user 4 when started with S@4, SP@4 or S!@4
+DIR U4MARK.*
+DIR U0MARK.*
+

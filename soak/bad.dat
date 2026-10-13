@@ -1,0 +1,17 @@
+; mcheck input (see test.md): 3 lines are valid, 11 are rejected
+T Bad lines
+E@4   good   | DIR
+E@16  too big| DIR
+E@    bare   | DIR
+E@x   letter | DIR
+E@4A  letter after | DIR
+E@123 three digits | DIR
+C@4   chain  | DIR
+CP@4  chain  | DIR
+C!@4  chain  | DIR
+M@4   menu   | menu1.dat
+EP@   bare   | DIR
+@4    no type| DIR
+E label@4 | DIR
+E!@15 good   | DIR
+

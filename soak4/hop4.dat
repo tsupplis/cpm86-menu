@@ -1,0 +1,6 @@
+; menu started INSIDE user 4 by hop.dat entry 8
+T Menu running in user 4
+E  Local entry, user 4          | DIR U4MARK.*
+E@4 Same user as home: no hop   | DIR U4MARK.*
+E@0 Nested hop back to user 0   | DIR U0MARK.*
+
