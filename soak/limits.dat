@@ -1,0 +1,18 @@
+T Limits test
+E LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL | HELLO
+E long command | xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+E entry 1 | HELLO
+E entry 2 | HELLO
+E entry 3 | HELLO
+E entry 4 | HELLO
+E entry 5 | HELLO
+E entry 6 | HELLO
+E entry 7 | HELLO
+E entry 8 | HELLO
+E entry 9 | HELLO
+E entry 10 | HELLO
+E entry 11 | HELLO
+E entry 12 | HELLO
+E entry 13 | HELLO
+E entry 14 | HELLO
+E entry 15 | HELLO

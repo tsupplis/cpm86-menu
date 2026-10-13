@@ -1,0 +1,3 @@
+; S entry whose .sub file does not exist (test R13)
+T Missing sub file
+S  Missing sub file | NOSUCH

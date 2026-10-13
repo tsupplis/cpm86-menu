@@ -60,8 +60,8 @@ Run from the project directory; for the `soak/` files run from `soak/` and use
 | M3 | `emu2 ../mcheck.cmd hop.dat` (in `soak/`) | `12 entries, 0 warnings, 0 errors` | |
 | M4 | `emu2 ../mcheck.cmd bad.dat` (in `soak/`) | 3 entries (`E@4 good`, `E label@4`, `E!@15 good`) and 11 `ERR:` lines: `@16`, bare `@`, `@x`, `@4A`, `@123`, `C@4`, `CP@4`, `C!@4`, `M@4`, `EP@`, `@4` with no type | |
 | M5 | `emu2 mcheck.cmd nofile.dat` | `ERR: cannot open the menu file`, exit code 1 | |
-| M6 | a `.dat` with a 16th entry, a 126-character command and a 71-character label | `ERR` for the first two, `WRN` for the label | |
-| S1 | `emu2 msub.cmd /N soak` (in `soak/`) | `OK`, no error | |
+| M6 | `emu2 ../mcheck.cmd limits.dat` (in `soak/`): a 71-character label, a 126-character command, and 15 more valid entries | `WRN` label cut (line 2), `ERR` command longer than 125 (line 3), `ERR` too many entries (line 18, `entry 15`), `15 entries, 1 warnings, 2 errors` | |
+| S1 | `EMU2_CPM_VER=2.2 emu2 ../msub.cmd /N soak` (in `soak/`) | lists lines 2-13, then `WARNING: CCP not recognised` (normal on emu2) and `OK: 12 commands = 12 of 128 records. Nothing written.` | pass |
 
 Run M1 to M5 on pce too (`MCHECK BAD.DAT` at `B>`) if you want the same checks on the real system.
 

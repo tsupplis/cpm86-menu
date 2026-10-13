@@ -1,15 +1,15 @@
 ; user-hop tests (see test.md). Run from B> in user 0; needs the user-4 files
 T Hop test
-E@4  1 Hop: DIR in user 4          | DIR U4MARK.*
-EP@4 2 Hop, pause                  | DIR U4MARK.*
-E!@4 3 Hop, leave to the prompt    | DIR U4MARK.*
-S@4  4 Hop with an S file          | HOPS
-SP@4 5 Hop with an S file, pause   | HOPS
-S!@4 6 Hop with an S file, leave   | HOPS
-E@4  7 Program only in user 4      | HELLO
-E@4  8 Nested: menu in user 4      | B:MENU B:HOP4.DAT
-E@0  9 Same user as home: no hop   | DIR U0MARK.*
-E@15 10 Hop to user 15             | DIR
-E@4  11 Missing program in user 4  | NOSUCH
-E   12 Plain entry, no hop         | DIR U0MARK.*
+E@4  Hop: DIR in user 4          | DIR U4MARK.*
+EP@4 Hop, pause                  | DIR U4MARK.*
+E!@4 Hop, leave to the prompt    | DIR U4MARK.*
+S@4  Hop with an S file          | HOPS
+SP@4 Hop with an S file, pause   | HOPS
+S!@4 Hop with an S file, leave   | HOPS
+E@4  Program only in user 4      | HELLO
+E@4  Nested: menu in user 4      | B:MENU B:HOP4.DAT
+E@0  Same user as home: no hop   | DIR U0MARK.*
+E@15 Hop to user 15             | DIR
+E@4  Missing program in user 4  | NOSUCH
+E   Plain entry, no hop         | DIR U0MARK.*
 

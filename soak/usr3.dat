@@ -1,0 +1,3 @@
+; S@4 entry whose .sub file contains a USER line (test F7)
+T USER line in an S file
+S@4 USER line in the S file | USR3
