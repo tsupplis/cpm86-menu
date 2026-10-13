@@ -7,42 +7,46 @@ How `menu.cmd` is built and how its parts fit. For the CCP hand-over, see
 
 ```mermaid
 flowchart LR
-    subgraph SRC["sources"]
+    subgraph SRC["sources (in cpm86-menu)"]
         MC["menu.c<br/>UI, launch"]
         MD["menudat.c<br/>.dat parser"]
+        MS["msub.c<br/>SUBMIT replacement"]
+    end
+    subgraph ULS["util.lib sources (in cpm86-hacking)"]
         SC["sub.c<br/>$$$.SUB stack"]
         SF["subfile.c<br/>.sub reader"]
-        MS["msub.c<br/>SUBMIT replacement"]
         CO["conio.c<br/>VT52 console"]
-        OS["os.asm<br/>BDOS / CCP access"]
+        OS["os.asm<br/>BDOS / CCP / hardware"]
+        UT["util.c / dpb.c / dirent.c<br/>epoch.c / gfx.asm / debug.c"]
     end
-    subgraph LIB["libraries"]
-        SL["sub.lib"]
-        UL["util.lib"]
-    end
-    SC --> SL
-    SF --> SL
+    SC --> UL["util.lib"]
+    SF --> UL
     CO --> UL
     OS --> UL
+    UT --> UL
     MC --> CMD["menu.cmd"]
     MD --> CMD
-    SL --> CMD
     UL --> CMD
     LC["Aztec libc<br/>(-lc86)"] --> CMD
     MS --> MSC["msub.cmd"]
-    SL --> MSC
     UL --> MSC
+    LC --> MSC
 ```
 
-| File | Key functions |
+`util.lib` is built in `../cpm86-hacking` and copied into this workspace. The headers
+(`sub.h`, `conio.h`, `menudat.h`) are copied alongside it.
+
+| File | Key functions used by menu / msub |
 |---|---|
 | `menu.c` | `main`, `draw_screen`, `draw_entry`, `build_menucmd`, `menu_error` |
 | `msub.c` | `main`: banner, usage, `/N` check, `sub_load` → push → `sub_exit` |
-| `subfile.c` | `sub_load`, `sub_line`, `sub_pushall`, `sub_name`, `sub_errmsg`, `sub_errline` |
-| `menudat.c` | `load_menu` → `items[]`, `menu_title`, `menu_back`, `menu_quit_disabled`, `menu_has_snr` |
-| `sub.c` | `sub_open` (CREATE / APPEND), `sub_append`, `sub_close`, `sub_abort`, `sub_delete` |
-| `os.asm` | `ccpseg` (gate), `setsub`, `sub_exit`, `p_chain`, `sub_active`, `sub_cmddrv` |
-| `conio.c` | `cputs` (BDOS 9 runs), `cputc`, `getch`, `gotoxy`, `clrscr`, `cursor` |
+| `menudat.c` | `load_menu` → `items[]`, `menu_title`, `menu_back`, `menu_quit_disabled`, `menu_has_snr`; uses `sub_readln` |
+| `sub.c` | `sub_open` (CREATE / APPEND), `sub_append`, `sub_close`, `sub_records`, `sub_abort`, `sub_delete` |
+| `subfile.c` | `sub_load`, `sub_line`, `sub_lineno`, `sub_pushall`, `sub_name`, `sub_errmsg`, `sub_errline`, `sub_readln` |
+| `os.asm` | CCP gate: `ccpseg`, `setsub`, `sub_exit`, `p_chain`, `sub_active`, `sub_cmddrv`<br/>OS / hardware: `getcurdrv`, `setcurdrv`, `getccpdrv`, `bdosx`, `delay`, `bioskey`, `pckey`, `xstatline` |
+| `conio.c` | `cputs` (BDOS fn 2), `cputc`, `kbhit`, `getch`, `gotoxy`, `clrscr`, `clreos`, `clreol`, `cursor`, `wrapline`, `statline`, `setstatus`, `textcolor`, `scrmode`, `crtreset` |
+| `util.c` | `getenv`, `printenv`, `istrcmp` (not used by menu / msub directly) |
+| `dirent.c` | `dirent_load`, `dirent_sort`, `dirent_free`, `dirent_is_fat` (not used by menu / msub directly) |
 
 ## 2. Startup
 
