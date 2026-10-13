@@ -17,6 +17,8 @@ This menu program is accompanied by an msub.cmd command which is a clean room re
 | `menu.cmd` | Default drive, any user area |
 | `menu.dat` | Same directory as `menu.cmd` |
 | `msub.cmd` | Optional: SUBMIT replacement, any drive (see [MSUB](#msub)) |
+| `mclean.cmd` | Same place as `menu.cmd`; needed only by entries that run in another user area (see [MCLEAN](#mclean)) |
+| `mcheck.cmd` | Optional: checks a `.dat` file (see [MCHECK](#mcheck)) |
 
 
 ## Usage
@@ -53,6 +55,35 @@ With no argument MSUB prints its banner and usage and does nothing. The
 `.sub` file rules (`$$`, `^x`, `;` comments, limits) are in
 [S / S! files](#s--s-files). Behaviour inside a running job: see [MSUB](#msub).
 
+### MCHECK
+
+```
+MCHECK [file.dat]
+```
+
+Loads a menu file with the same parser as `MENU` and reports what it
+understood, changing nothing (default `menu.dat`). One message per line:
+
+| Prefix | Meaning |
+|---|---|
+| `INF:` | the title, `Q!`, `M!`, and each entry as `MENU` will see it (type, `P`, `@n`, label, command), then a count |
+| `WRN:` | the line is accepted but altered: a title or label over 70 characters (cut), `M!` or `T` without text (ignored) |
+| `ERR:` | the line is not understood and `MENU` skips it: unknown line type, missing `\|`, empty label or command, command over 125 characters, line over 255 characters, bad `@n` suffix, a 16th entry |
+
+Each `WRN:` and `ERR:` gives the line number and the line. The exit code is 1
+when there is an `ERR:` (or the file cannot be opened), otherwise 0.
+
+### MCLEAN
+
+```
+MCLEAN n
+```
+
+Written by `MENU` into `$$$.sub` after an entry that ran in user area `n`
+(see [Running in another user area](#running-in-another-user-area)). It
+deletes an empty `$$$.sub` left in user `n` and does nothing if the file still
+holds commands. It is not meant to be typed.
+
 
 ## menu.dat Format
 
@@ -78,6 +109,26 @@ Maximum 15 entries per file.
 | `C` | `C {label} \| {command}` | Chain directly to command via `P_CHAIN`; `MENU datfile` queued in `$$$.sub` so CCP returns to menu after. |
 | `CP` | `CP {label} \| {command}` | As `C`, then wait for a key before the menu redraws. |
 | `C!` | `C! {label} \| {command}` | Chain directly to command via `P_CHAIN`; exits cleanly with no re-launch. |
+
+### `@n` suffix: run in another user area
+
+`E`, `EP`, `E!`, `S`, `SP` and `S!` accept a user area number glued to the
+type, with no blank:
+
+```
+E@4   WordStar in user 4     | WS
+E!@4  Run once in user 4     | BACKUP
+SP@12 Nightly job, user 12   | NIGHT
+```
+
+| Rule | |
+|---|---|
+| number | 0 to 15, one or two digits |
+| not accepted | `C`, `CP`, `C!`, `M`; a number over 15; a bare `@`; a letter after `@` or after the number (`@4A`). The line is skipped, as for any malformed line, and `MCHECK` reports it. |
+| same user | If the menu is already running in user `n`, the suffix has no effect and the entry runs as a normal one. |
+
+See [Running in another user area](#running-in-another-user-area) for what the
+suffix does and its limits.
 
 ### Field limits
 
@@ -166,7 +217,40 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
   a bare drive change (`B:`) or `USER n` therefore ends the `$$$.sub` chain:
   the remaining lines and the `MENU` re-launch are not run. Use a
   drive-prefixed command instead (`E Prog | B:PROG`), which loads from `B:`
-  without changing the CCP's current drive.
+  without changing the CCP's current drive. To run an entry in another user
+  area use the `@n` suffix instead (next section).
+- There is no drive equivalent of `@n`: switching drive in a chain is not
+  supported.
+
+### Running in another user area
+
+`E@4 WordStar | WS` runs `WS` with the CCP in user area 4 and then brings the
+menu back in the user area it was in. Nothing in the CCP is changed. `MENU`
+writes two `$$$.sub` files, one in the current user and one in user 4, and
+the CCP moves from one to the other with its own `USER` command, which does
+not restart it:
+
+| `$$$.sub` | Records, in the order the CCP runs them |
+|---|---|
+| user 4 | `WS`, then `USER 0` |
+| current user (0 here) | `USER 4`, then `MCLEAN 4`, then `MENU …` (not for `E!`, `S!`) |
+
+For an `S` entry the lines of the `.sub` file replace `WS`. `MCLEAN 4` deletes
+the empty `$$$.sub` that the CCP leaves in user 4 once it is back home (see
+[submit-flow.md](submit-flow.md), section 10).
+
+- The menu file, `MENU.CMD` and `MCLEAN.CMD` are used from the user area the
+  menu runs in; the **entry's program must be in user `n`**, or be a user-0
+  file with the SYS attribute. CP/M-86 does not look in user 0 for other files.
+- `S` files are read from the current user, as for any `S` entry. Their lines
+  run in user `n`.
+- A `USER` line or a bare `B:` line inside an `S` file ends the chain, as
+  described above; the suffix does not change that.
+- If the menu runs in user `n` already, `@n` has no effect.
+- A menu started inside a user-`n` stack can hop again (`@m`); each hop goes
+  back to the user it started from.
+- Both stacks have to fit in 128 records. The check is made before anything is
+  written, and a footer error is shown if they do not.
 
 
 ## Keys
@@ -243,6 +327,11 @@ jobs to build nested jobs.
   written to `$$$.sub` but the CCP is not told to run them.
 - **No bare drive or user change in a chain.** `B:` or `USER n` as an entry or
   `.sub` line ends the `$$$.sub` chain (see *Drives and user areas*).
+- **User hop (`@n`):** `E`, `EP`, `E!`, `S`, `SP`, `S!` only, user 0 to 15, no
+  drive. The program must be in user `n` (or a user-0 SYS file). If the
+  `MCLEAN` record does not run, an empty `$$$.sub` stays in user `n` until the
+  next hop there. If the write to the current user fails after the user-`n`
+  records were added to a job already running there, those records stay.
 - **DR `SUBMIT.CMD` as an entry** replaces the whole `$$$.sub` stack, including
   the `MENU` re-launch and any outer job. Use `S` entries instead.
 - **Stack size:** `$$$.sub` holds at most 128 commands in total (the CCP only
@@ -264,12 +353,15 @@ jobs to build nested jobs.
 | Document | Contents |
 |---|---|
 | [implementation.md](implementation.md) | Modules, startup, key loop, launch path, CCP access, data formats, limits — mostly diagrams. |
-| [submit-flow.md](submit-flow.md) | How `$$$.sub` hands commands to the CCP and loops back to `MENU`, including `MENU` inside a SUBMIT job (section 7). |
+| [submit-flow.md](submit-flow.md) | How `$$$.sub` hands commands to the CCP and loops back to `MENU`, including `MENU` inside a SUBMIT job (section 7) and running in another user area (section 10). |
+| [test.md](test.md) | The manual test plan: emu2 checks, regression of every entry type, the user hop, failure cases. |
 
 
 ## Build
 
 Requires the `cpm86-crossdev` toolchain (`aztec42_cc`, `aztec42_link`, etc.).
+`mclean.cmd` is assembler, built with `cpm86_asm86` and `cpm86_gencmd` in the
+8080 model.
 
 The project also depends on the `util` library from
 [cpm86-hacking](https://github.com/tsupplis/cpm86-hacking). The following
@@ -277,12 +369,12 @@ files are taken from there and kept in this directory; they are not built here:
 
 | File | Purpose |
 |------|---------|
-| `util.lib` | Library linked into `menu.cmd`, `msub.cmd` and `hello.cmd` |
+| `util.lib` | Library linked into `menu.cmd`, `msub.cmd`, `mcheck.cmd` and `hello.cmd` |
 | `util.h`, `conio.h`, `debug.h`, `dirent.h`, `epoch.h`, `gfx.h`, `sub.h` | Headers used at compile time |
 
 ```
-make          # builds menu.cmd, msub.cmd and hello.cmd
-make dist     # msub.zip: menu.cmd, msub.cmd, hello.cmd, sample .dat/.
+make          # builds menu.cmd, msub.cmd, mclean.cmd, mcheck.cmd and hello.cmd
+make dist     # msub.zip: the programs above, sample .dat/.sub files
 make clean    # removes all generated files
 ```
 

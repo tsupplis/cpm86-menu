@@ -261,3 +261,107 @@ The `MENU` line has to work from wherever the CCP is when it pops it.
   nothing triggers the CCP to run them.
 - An `S` file is fully read and checked **before** `$$$.SUB` is created. Any
   error leaves the menu running and no partial `$$$.SUB` behind.
+
+---
+
+## 10. Running an entry in another user area (`@n`)
+
+The CCP reads `$$$.SUB` from **its own current drive and user** (section 5), so
+an entry cannot simply start with `USER 4`: the `MENU` record and the rest of the
+stack stay in the first user and are never read. The `@n` suffix gets around
+this without changing the CCP, by using what the CCP already does for a
+`USER n` command line.
+
+### What the CCP does on `USER n`
+
+`USER n` is handled inside the CCP (`USER` / `USERSE` in `ccp.a86`). It stores
+the new user code, calls `GETUSS` and ends in `ENDPRT`, which goes to `CCPLOP`.
+There is **no warm boot**, so `MDSUBE` is still set, and the next `RDCOMN` opens
+`$$$.SUB` again. The BDOS adds its own user code to the FCB (`USRCOD`, set by
+BDOS fn 32), so the file it finds is the `$$$.SUB` **of the new user**. A user
+number of 16 or more is refused before anything is changed.
+
+The result is a relay: one stack hands over to another stack in the other user.
+
+### The two stacks
+
+For `E@4 WordStar | WS` started in user 0:
+
+| `$$$.SUB` | Records, first popped on top |
+|---|---|
+| user 4 | `WS` (top), `USER 0` (bottom) |
+| user 0 | `USER 4` (top), `MCLEAN 4`, `MENU B:MENU.DAT /1` (bottom, not for `E!`, `S!`) |
+
+```mermaid
+sequenceDiagram
+    participant M as menu.cmd
+    participant F4 as user 4 $$$.SUB
+    participant F0 as user 0 $$$.SUB
+    participant C as CCP
+    participant X as mclean.cmd
+    M->>F4: bdos 32 = 4: write USER 0, then WS, close
+    M->>F0: bdos 32 = 0: write MENU, MCLEAN 4, USER 4, close
+    M->>C: MDSUBE = FFh, BDOS 0
+    C->>F0: pops USER 4, no warm boot
+    C->>F4: RDCOMN in user 4 pops WS, runs it
+    C->>F4: after the warm boot, pops USER 0
+    C->>F0: RDCOMN in user 0 pops MCLEAN 4
+    X->>F4: user 4: file has 0 records, delete it; back to user 0
+    C->>F0: pops MENU
+```
+
+- The user-4 stack is written first, so a failure there leaves nothing in user 0.
+- The last record of the user-4 stack is `USER 0`, so the CCP is home again
+  before `MCLEAN` and `MENU` are popped.
+- The home user comes from BDOS fn 32 (get) at launch time, so the same menu
+  works from any user. If `@n` equals the current user, nothing is added: the
+  entry runs as a normal one.
+- For an `S` entry the expanded lines of the `.sub` file are pushed in the user-4
+  stack in place of `WS`. The file itself is read from the current user.
+- Inside a SUBMIT job (`MDSUBE` set at start) each stack is appended to what is
+  already in that user's file, as in section 7. The job in the home user is
+  untouched below the new records.
+
+### The leftover file
+
+`RDCOMN` lowers the record count and closes the file **before** it runs the
+command. `DELSUB` removes the file only when a later `RDCOMN` finds nothing
+more to read, and only in the CCP's current user. When the last record of the
+user-4 stack (`USER 0`) has been popped, the CCP is back in user 0 and never
+looks in user 4 again: an empty (0-record) `$$$.SUB` stays there.
+
+`MCLEAN n` is the record that removes it. It switches to user `n` (BDOS 32),
+opens `$$$.SUB`, deletes it **only if the record count is 0**, restores the
+user and exits. The count check matters when a menu is started inside user 4 by
+the hop and hops again: the user-4 file then still holds the outer records and
+must not be deleted.
+
+`MCLEAN` runs from the home user, so it does not need to be in user `n`.
+
+### Which files are found where
+
+BDOS opens a file in the current user. Only when the current user is not 0 does
+it fall back to user 0, and only for files with the SYS attribute. Therefore:
+
+| What | Where it must be |
+|---|---|
+| `MENU.CMD`, `MCLEAN.CMD`, the `.dat` file, the `.sub` of an `S` entry | the home user (they run or are read there) |
+| the program of the entry (`WS`) | user `n`, or user 0 with the SYS attribute |
+| `$$$.SUB` of the home user | not visible from user `n` (not SYS) |
+
+### Failures
+
+- Both stacks have to fit in 128 records. This is checked with `sub_records()`
+  (it writes nothing) before the first write, and reported on the footer line.
+- If writing the user-`n` stack works and the home stack fails, the user-`n`
+  file is deleted when `menu` created it. When it was appended to a job that was
+  already running there, its records stay; this case cannot be undone with the
+  current `sub_*` functions.
+- A `USER` or bare `X:` line inside an `S` file still ends the chain at that
+  line. The relay does not change that.
+- If `MCLEAN` does not run (for example the chain ended earlier), the empty file
+  stays in user `n` until the next hop there creates a new one.
+- A command that is not found makes the CCP print `cmd?` and go back to
+  `CCPLOP`, which reads `$$$.SUB` again; the stack is not lost
+  (`COMERR` in `ccp.a86`).
+- There is no drive version of this. A drive change in a chain is not supported.
