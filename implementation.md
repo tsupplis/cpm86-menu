@@ -99,7 +99,7 @@ flowchart TD
     S0{"S / SP / S! ?"} -- yes --> RS["sub_load<br/>read + expand"]
     RS -- error --> ER["menu_error<br/>stay in menu"]
     RS --> M1
-    S0 -- no --> M1["remenu = E S C, not exit-only<br/>menucmd = [D:]MENU D:dat /n [/P]<br/>home = BDOS 32 get<br/>hop = @n set and n ≠ home"]
+    S0 -- no --> M1["remenu = E S C<br/>menucmd = [D:]MENU D:dat /n [/P]<br/>home = BDOS 32 get<br/>hop = @n set and n ≠ home"]
     M1 --> C0{"C / C! and not remenu ?"}
     C0 -- yes --> CH["p_chain(cmd)<br/>no MENU record"]
     C0 -- no --> H0{"hop ?"}

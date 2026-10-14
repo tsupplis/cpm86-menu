@@ -141,8 +141,8 @@ top    rec3  DIR P1          runs 1st
 bottom rec0  B:MENU A:X.DAT  runs last -> back in the menu
 ```
 
-`E!`, `S!` and `C!`, and every entry in an exit-only sub-menu, leave out the
-bottom `MENU` record, so nothing brings the menu back.
+`E!`, `S!` and `C!` leave out the bottom `MENU` record, so nothing brings the
+menu back.
 
 ---
 

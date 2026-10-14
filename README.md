@@ -156,10 +156,9 @@ E! Exit to CP/M      | EXIT
 
 - If an `M`/`M!` target file is missing or empty, the switch is silently ignored
   and the current menu stays active.
-- A sub-menu file — a `.dat` with an `M!` directive — that contains no `S!`
-  entries is treated as exit-only: `E`, `S` and `C` entries in it behave like
-  `E!`, `S!` and `C!` (no `MENU` re-launch). The main `menu.dat` (no `M!`) is
-  never exit-only.
+- `E`, `S` and `C` entries re-launch `MENU` on the `.dat` they were run from,
+  so from a sub-menu (with or without `M!`) the menu comes back on that
+  sub-menu, on the entry that was run.
 - If an `S` file is missing, empty or invalid, or `$$$.sub` cannot be written,
   the error is shown on the footer line and the menu stays active.
 

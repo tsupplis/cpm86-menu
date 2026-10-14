@@ -503,10 +503,9 @@ reload:
                 home = bdos(32, 0xFF) & 0xFF;
                 hop  = (items[sel].user >= 0 && items[sel].user != home);
 
-                /* E, S and C re-launch MENU, except in an exit-only
-                   sub-menu: a .dat with an M! directive and no S! entry */
-                remenu = (type == MTYPE_E || type == MTYPE_S || type == MTYPE_C)
-                         && !(has_back && !menu_has_snr);
+                /* E, S and C re-launch MENU (on the current dat, so also
+                   from a sub-menu); E!, S! and C! do not */
+                remenu = (type == MTYPE_E || type == MTYPE_S || type == MTYPE_C);
 
                 /* read and check the .sub file before touching $$$.SUB */
                 n = 0;
