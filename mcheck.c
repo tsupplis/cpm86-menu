@@ -78,6 +78,7 @@ int main(argc, argv)
     count = load_menu(items, MAX_ENTRIES, datfile);
 
     printf("INF: title: %s\n", menu_title);
+    printf("INF: colours: title %d, items %d\n", menu_title_fg, menu_item_fg);
     if (menu_quit_disabled)
         printf("INF: Q! quit disabled\n");
     if (menu_back[0] != '\0')

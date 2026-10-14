@@ -5,6 +5,8 @@
 /* Definitions for the globals declared extern in menudat.h */
 static char default_title[]       = "CP/M-86 application menu version 1.0";
 char menu_title[MAX_TITLE + 1];
+int  menu_title_fg                = DEF_COLOR;
+int  menu_item_fg                 = DEF_COLOR;
 int  menu_quit_disabled           = 0;
 int  menu_has_snr                 = 0;
 char menu_back[MAX_CMD + 1]       = "";
@@ -101,6 +103,8 @@ int load_menu(items, max, filename)
 
     /* Reset globals for this load */
     menu_quit_disabled = 0;
+    menu_title_fg      = DEF_COLOR;
+    menu_item_fg       = DEF_COLOR;
     menu_has_snr       = 0;
     menu_back[0]       = '\0';
     scopy(menu_title, default_title, MAX_TITLE);
@@ -143,6 +147,29 @@ int load_menu(items, max, filename)
                 scopy(menu_title, label, MAX_TITLE);
             } else {
                 DIAG(MDIAG_WRN, "empty title, default title kept");
+            }
+            continue;
+        }
+
+        /* ---- CTn / CIn : title / item foreground colour 0..15 ------- */
+        if (p[0] == 'C' && (p[1] == 'T' || p[1] == 'I')
+                        && (p[2] == ' ' || p[2] == '\t'
+                            || (p[2] >= '0' && p[2] <= '9'))) {
+            char *q = ltrim(p + 2);
+            n = -1;
+            if (*q >= '0' && *q <= '9') {
+                n = *q++ - '0';
+                if (*q >= '0' && *q <= '9')
+                    n = n * 10 + (*q++ - '0');
+                if (*q != '\0' && *q != ' ' && *q != '\t')
+                    n = -1;
+            }
+            if (n < 0 || n > MAX_COLOR) {
+                DIAG(MDIAG_ERR, "bad colour: expected a number 0-15");
+            } else if (p[1] == 'T') {
+                menu_title_fg = n;
+            } else {
+                menu_item_fg = n;
             }
             continue;
         }

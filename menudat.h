@@ -16,6 +16,8 @@
 #define MTYPE_CNR   6   /* C! : chain to cmd, no MENU re-append */
 
 #define MAX_USER    15  /* highest user area for the @n suffix */
+#define MAX_COLOR   15  /* highest colour for CTn / CIn */
+#define DEF_COLOR   14  /* default title and item foreground */
 
 /* Diagnostic levels for the MCHECK build of load_menu (see menudat.c) */
 #define MDIAG_INF   0
@@ -38,8 +40,13 @@ typedef struct {
  * menu_has_snr      : 1 if at least one S! entry found, 0 otherwise.
  * menu_back         : filename set by M! directive; empty string if absent.
  *                     If non-empty, the B key is shown and returns to this dat.
+ * menu_title_fg     : foreground colour 0..15 from CTn; default 14.
+ * menu_item_fg      : foreground colour 0..15 of unselected items from CIn;
+ *                     default 14.
  */
 extern char menu_title[MAX_TITLE + 1];
+extern int  menu_title_fg;
+extern int  menu_item_fg;
 extern int  menu_quit_disabled;
 extern int  menu_has_snr;
 extern char menu_back[MAX_CMD + 1];

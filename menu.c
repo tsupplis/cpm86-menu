@@ -141,7 +141,7 @@ static void draw_entry(int idx, int selected)
     cputc(CH_SPACE);                        /* 1 normal space before highlight */
 
     if (selected) { setfg(0);  setbg(7); }
-    else          { setfg(14); setbg(0); }
+    else          { setfg(menu_item_fg); setbg(0); }
 
     /* 1 highlighted space + N. label + fill + 1 highlighted space,
        built in rowbuf (k) while col tracks the screen column */
@@ -155,8 +155,9 @@ static void draw_entry(int idx, int selected)
         rowbuf[k++] = (char)('0' + n % 10);
         col += 2;
     } else {
+        rowbuf[k++] = CH_SPACE;             /* pad so "." aligns with 10+ */
         rowbuf[k++] = (char)('0' + n);
-        col += 1;
+        col += 2;
     }
     rowbuf[k++] = '.';
     rowbuf[k++] = ' ';
@@ -218,7 +219,7 @@ static void draw_screen(int sel, int has_back)
     for (i = 1; i <= pad; i++) rowbuf[i] = CH_SPACE;
     rowbuf[i] = '\0';
     cputs(rowbuf);
-    setfg(14);
+    setfg(menu_title_fg);
     cputs(menu_title);
     setfg(7);
     i = pad + tlen;

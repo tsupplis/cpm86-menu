@@ -97,6 +97,8 @@ Maximum 15 entries per file.
 | Directive | Syntax | Description |
 |-----------|--------|-------------|
 | `T` | `T {title}` | Set the title bar text. Optional; default title used if absent. |
+| `CT` | `CT{n}` | Title foreground colour `n` (0–15, default 14). Optional; the number may follow a blank (`CT 11`). |
+| `CI` | `CI{n}` | Foreground colour `n` (0–15, default 14) of the entries that are not selected. Optional. |
 | `Q!` | `Q!` | Disable the `Q`/Quit key entirely. |
 | `E` | `E {label} \| {command}` | Launch command; re-launch `MENU` afterwards (stays in menu loop). |
 | `EP` | `EP {label} \| {command}` | As `E`, then wait for a key before the menu redraws (output stays visible). |
