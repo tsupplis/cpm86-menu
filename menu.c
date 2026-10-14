@@ -48,7 +48,7 @@ static char CH_TR    = 191;   /* top-right corner */
 static char CH_BL    = 192;   /* bottom-left corner */
 static char CH_BR    = 217;   /* bottom-right corner */
 
-static MenuItem items[MAX_ENTRIES];
+static menu_item_t items[MAX_ENTRIES];
 static int      count = 0;
 
 /* ------------------------------------------------------------------ */
@@ -86,9 +86,7 @@ static void draw_blank_row(int row)
 }
 
 /* "| text<pad>|" on row, text cut to fit the box */
-static void draw_textrow(row, text)
-    int   row;
-    char *text;
+static void draw_textrow(int row, char *text)
 {
     int k;
 
@@ -106,10 +104,7 @@ static void draw_textrow(row, text)
 }
 
 /* append src to dst, dst holding at most max chars */
-static void sappend(dst, src, max)
-    char *dst;
-    char *src;
-    int   max;
+static void sappend(char *dst, char *src, int max)
 {
     int n;
 
@@ -184,8 +179,7 @@ static void draw_entry(int idx, int selected)
 
 /* ------------------------------------------------------------------ */
 /* Compute length of a C string                                         */
-static int slen(p)
-    char *p;
+static int slen(char *p)
 {
     int n;
     for (n = 0; p[n] != '\0'; n++) ;
@@ -256,11 +250,7 @@ static void draw_screen(int sel, int has_back)
 
 /* ------------------------------------------------------------------ */
 /* Show an error on the footer row, wait for a key, redraw the menu.    */
-static void menu_error(msg, arg, sel, has_back)
-    char *msg;
-    char *arg;
-    int   sel;
-    int   has_back;
+static void menu_error(char *msg, char *arg, int sel, int has_back)
 {
     char text[INNER_WIDTH + 1];
 
@@ -285,12 +275,7 @@ static void menu_error(msg, arg, sel, has_back)
  * /n brings the menu back on entry n (1-based); /P makes it wait for a key
  * first so the output of the entry stays on screen.
  */
-static void build_menucmd(menucmd, datfile, cmddrv, sel, pause)
-    char *menucmd;
-    char *datfile;
-    int   cmddrv;
-    int   sel;
-    int   pause;
+static void build_menucmd(char *menucmd, char *datfile, int cmddrv, int sel, int pause)
 {
     int i;
     int j;
@@ -323,11 +308,7 @@ static void build_menucmd(menucmd, datfile, cmddrv, sel, pause)
  * Build "[D:]text n" for a stack record, e.g. "USER 4" or "B:MCLEAN 4".
  * drv: drive prefix (1=A..16=P), 0 = none. n is 0..99.
  */
-static void numrec(buf, drv, text, n)
-    char *buf;
-    int   drv;
-    char *text;
-    int   n;
+static void numrec(char *buf, int drv, char *text, int n)
 {
     int i;
     int j;
@@ -348,9 +329,7 @@ static void numrec(buf, drv, text, n)
 
 /* ------------------------------------------------------------------ */
 
-int main(argc, argv)
-    int argc;
-    char **argv;
+int main(int argc, char **argv)
 {
     int  sel;
     int  prev;

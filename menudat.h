@@ -30,7 +30,7 @@ typedef struct {
     int  type;          /* MTYPE_*                                  */
     int  pause;         /* EP/SP/CP: wait for a key before the menu redraws */
     int  user;          /* @n suffix: run in user area n; -1 = none */
-} MenuItem;
+} menu_item_t;
 
 /*
  * All set/reset by load_menu() on every call.
@@ -51,6 +51,6 @@ extern int  menu_quit_disabled;
 extern int  menu_has_snr;
 extern char menu_back[MAX_CMD + 1];
 
-int load_menu(MenuItem *items, int max, char *filename);
+int load_menu(menu_item_t *items, int max, char *filename);
 
 #endif

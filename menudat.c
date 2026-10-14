@@ -36,8 +36,7 @@ static char raw[256];
 /* ------------------------------------------------------------------ */
 
 /* Return pointer to first non-space/tab character */
-static char *ltrim(p)
-    char *p;
+static char *ltrim(char *p)
 {
     while (*p == ' ' || *p == '\t')
         p++;
@@ -45,8 +44,7 @@ static char *ltrim(p)
 }
 
 /* Trim trailing whitespace in-place */
-static void rtrim(p)
-    char *p;
+static void rtrim(char *p)
 {
     int len;
     len = 0;
@@ -58,10 +56,7 @@ static void rtrim(p)
 }
 
 /* Copy at most max chars from src into dst, null-terminate */
-static void scopy(dst, src, max)
-    char *dst;
-    char *src;
-    int   max;
+static void scopy(char *dst, char *src, int max)
 {
     int i;
     for (i = 0; i < max && src[i] != '\0'; i++)
@@ -70,8 +65,7 @@ static void scopy(dst, src, max)
 }
 
 #ifdef MCHECK
-static int slen(p)
-    char *p;
+static int slen(char *p)
 {
     int n;
     for (n = 0; p[n] != '\0'; n++)
@@ -82,10 +76,7 @@ static int slen(p)
 
 /* ------------------------------------------------------------------ */
 
-int load_menu(items, max, filename)
-    MenuItem *items;
-    int max;
-    char *filename;
+int load_menu(menu_item_t *items, int max, char *filename)
 {
     FILE *fp;
     char  buf[256];

@@ -30,10 +30,10 @@ hello.cmd: hello.o util.lib
 # MCHECK: the MENU parser built with -DMCHECK (reports what it skips)
 # util.lib twice: subfile.o (sub_readln) needs sub_append from sub.o, which
 # the one-pass linker has already passed
-mcheck.cmd: mcheck.o menudat_chk.o util.lib
-	$(LD) -o $@ mcheck.o menudat_chk.o util.lib util.lib $(LDFLAGS)
+mcheck.cmd: mcheck.o menudatk.o util.lib
+	$(LD) -o $@ mcheck.o menudatk.o util.lib util.lib $(LDFLAGS)
 
-menudat_chk.o: menudat.c menudat.h
+menudatk.o: menudat.c menudat.h
 	$(CC) $(CFLAGS) -DMCHECK -o $@ menudat.c
 	$(STRIP) $@
 

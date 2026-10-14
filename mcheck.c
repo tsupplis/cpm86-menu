@@ -13,14 +13,13 @@
 #include <stdio.h>
 #include "menudat.h"
 
-extern int (*menu_diag)();
+extern int (*menu_diag)(int lineno, int level, char *msg, char *text);
 
-static MenuItem items[MAX_ENTRIES];
+static menu_item_t items[MAX_ENTRIES];
 static int nwrn;
 static int nerr;
 
-static char *typename(t)
-    int t;
+static char *typename(int t)
 {
     switch (t) {
     case MTYPE_E:   return "E";
@@ -35,11 +34,7 @@ static char *typename(t)
 }
 
 /* called by load_menu for every skipped (ERR) or altered (WRN) line */
-static int report(lineno, level, msg, text)
-    int lineno;
-    int level;
-    char *msg;
-    char *text;
+static int report(int lineno, int level, char *msg, char *text)
 {
     if (level == MDIAG_ERR) {
         nerr++;
@@ -57,9 +52,7 @@ static int report(lineno, level, msg, text)
     return 0;
 }
 
-int main(argc, argv)
-    int argc;
-    char **argv;
+int main(int argc, char **argv)
 {
     char *datfile;
     int   count;

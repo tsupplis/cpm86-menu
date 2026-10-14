@@ -15,8 +15,7 @@
 #include "conio.h"
 #include "sub.h"
 
-static void putnum(n)
-    int n;
+static void putnum(int n)
 {
     char d[6];
     int  i;
@@ -32,8 +31,7 @@ static void putnum(n)
 
 #define SUB_MAX_RECS 128    /* the CCP reads $$$.SUB from extent 0 only */
 
-static void putline(s)
-    char *s;
+static void putline(char *s)
 {
     for (; *s != '\0'; s++) {
         if (*s < ' ') {                 /* ^A..^Z made by ^x in the file */
@@ -47,8 +45,7 @@ static void putline(s)
 
 /* 1 if the line makes the CCP change its own drive or user: "B:" / "USER n".
    The CCP then looks for $$$.SUB there and the rest of the stack is lost. */
-static int changes_drive_user(s)
-    char *s;
+static int changes_drive_user(char *s)
 {
     if (s[0] >= 'A' && s[0] <= 'P' && s[1] == ':' && s[2] == '\0')
         return 1;
@@ -59,8 +56,7 @@ static int changes_drive_user(s)
 }
 
 /* /N: report only */
-static int check(n)
-    int n;
+static int check(int n)
 {
     int i;
     int active;
@@ -122,9 +118,7 @@ static int check(n)
     return bad;
 }
 
-int main(argc, argv)
-    int argc;
-    char **argv;
+int main(int argc, char **argv)
 {
     char  cmd[128];
     char *p;
