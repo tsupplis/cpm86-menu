@@ -380,7 +380,7 @@ int main(int argc, char **argv)
 
     if (pause) {
         cursor(CURSOR_ON);
-        cputs("\r\nPress any key to return to the menu");
+        cputs("\r\nPress any key to return to the menu...");
         getch();
     }
 
