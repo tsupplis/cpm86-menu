@@ -99,6 +99,9 @@ msub.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_SUB)
 clean:
 	$(RM) cpmtest.img *.o *.h86 *.lst *.sym menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd msub.zip
 
+test-local:
+	python3 tools/check.py
+
 test: cpm86test
 
 cpm86test: cpmtest.img

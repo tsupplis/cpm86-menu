@@ -37,21 +37,42 @@
 #define FOOTER_ROW    22  /* |   |  footer / messages   */
 #define BOX_BOT_ROW   23  /* c---d  content box bottom */
 
-static char CH_WALL  = 179;
-static char CH_DASH  = 196;
-static char CH_EQUAL = 205;
-static char CH_EQL   = 198;
-static char CH_EQR   = 181;
+static char CH_WALL  = (char)179;
+static char CH_DASH  = (char)196;
+static char CH_EQUAL = (char)205;
+static char CH_EQL   = (char)198;
+static char CH_EQR   = (char)181;
 static char CH_SPACE = ' ';
-static char CH_TL    = 218;   /* top-left corner */
-static char CH_TR    = 191;   /* top-right corner */
-static char CH_BL    = 192;   /* bottom-left corner */
-static char CH_BR    = 217;   /* bottom-right corner */
+static char CH_TL    = (char)218;   /* top-left corner */
+static char CH_TR    = (char)191;   /* top-right corner */
+static char CH_BL    = (char)192;   /* bottom-left corner */
+static char CH_BR    = (char)217;   /* bottom-right corner */
 
 static menu_item_t items[MAX_ENTRIES];
 static int      count = 0;
 
 /* ------------------------------------------------------------------ */
+
+/* BDOS 9 batches text; conio cputs otherwise calls BDOS once per byte.
+   Split at literal '$' so labels and error messages retain their text. */
+static void screen_puts(char *text)
+{
+    static char out[128];
+    int n;
+    while (*text) {
+        n = 0;
+        while (*text && *text != '$' && n < sizeof(out) - 1)
+            out[n++] = *text++;
+        if (n) {
+            out[n] = '$';
+            bdos(9, out);
+        }
+        if (*text == '$') {
+            cputc((char)'$');
+            text++;
+        }
+    }
+}
 
 static void setfg(int fg)
 {
@@ -64,7 +85,7 @@ static void setbg(int bg)
 }
 
 /* ------------------------------------------------------------------ */
-/* Rows are built in rowbuf and sent with one cputs (BDOS 9) per row,
+/* Rows are built in rowbuf and sent with one screen_puts (BDOS 9) per row,
    instead of one BDOS call per character. */
 static char rowbuf[SCREEN_COLS + 1];
 
@@ -77,7 +98,7 @@ static void draw_hline(int row, char mid, char left, char right)
     for (i = 1; i <= INNER_WIDTH; i++) rowbuf[i] = mid;
     rowbuf[INNER_WIDTH + 1] = right;
     rowbuf[INNER_WIDTH + 2] = '\0';
-    cputs(rowbuf);
+    screen_puts(rowbuf);
 }
 
 static void draw_blank_row(int row)
@@ -100,7 +121,7 @@ static void draw_textrow(int row, char *text)
         rowbuf[k++] = CH_SPACE;
     rowbuf[k++] = CH_WALL;
     rowbuf[k] = '\0';
-    cputs(rowbuf);
+    screen_puts(rowbuf);
 }
 
 /* append src to dst, dst holding at most max chars */
@@ -170,7 +191,7 @@ static void draw_entry(int idx, int selected)
     }
     rowbuf[k++] = CH_SPACE;                 /* 1 highlighted space after label */
     rowbuf[k] = '\0';
-    cputs(rowbuf);
+    screen_puts(rowbuf);
 
     setfg(7); setbg(0);
     cputc(CH_SPACE);                        /* 1 normal space after highlight */
@@ -212,16 +233,16 @@ static void draw_screen(int sel, int has_back)
     rowbuf[0] = CH_WALL;
     for (i = 1; i <= pad; i++) rowbuf[i] = CH_SPACE;
     rowbuf[i] = '\0';
-    cputs(rowbuf);
+    screen_puts(rowbuf);
     setfg(menu_title_fg);
-    cputs(menu_title);
+    screen_puts(menu_title);
     setfg(7);
     i = pad + tlen;
     k = 0;
     while (i < INNER_WIDTH) { rowbuf[k++] = CH_SPACE; i++; }
     rowbuf[k++] = CH_WALL;
     rowbuf[k] = '\0';
-    cputs(rowbuf);
+    screen_puts(rowbuf);
 
     /* Row 2: b===d  title box bottom */
     draw_hline(SEP1_ROW, CH_EQUAL, CH_EQL, CH_EQR);
@@ -345,7 +366,7 @@ int main(int argc, char **argv)
 
     /* $$$.SUB hand-over relies on the CP/M-86 1.1 (BDOS 2.2) CCP */
     if ((bdos(12, 0) & 0xFF) != 0x22) {
-        cputs("CP/M-86 1.1 required\r\n");
+        screen_puts("CP/M-86 1.1 required\r\n");
         return 1;
     }
 
@@ -380,7 +401,7 @@ int main(int argc, char **argv)
 
     if (pause) {
         cursor(CURSOR_ON);
-        cputs("\r\nPress any key to return to the menu...");
+        screen_puts("\r\nPress any key to return to the menu...");
         getch();
     }
 
@@ -394,8 +415,8 @@ reload:
     if (count == 0) {
         wrapline(WRAPLINE_ON);      /* may come from B after a draw */
         cursor(CURSOR_ON);
-        cputs("\r\nNo entries found in: "); cputs(datfile); cputs("\r\n");
-        cputs("Usage: MENU [datafile.dat] [/n] [/P]\r\n");
+        screen_puts("\r\nNo entries found in: "); screen_puts(datfile); screen_puts("\r\n");
+        screen_puts("Usage: MENU [datafile.dat] [/n] [/P]\r\n");
         return 1;
     }
 
@@ -473,6 +494,7 @@ reload:
                 int i;
                 int bad;
                 int opened;
+                int rollbackbad;
                 int home;       /* user area MENU runs in */
                 int hop;        /* run the entry in user area items[sel].user */
                 int altbefore;  /* records already in $$$.SUB of user n */
@@ -574,17 +596,15 @@ reload:
                 if (!bad)
                     bad = (sub_close() != 0);
                 if (bad) {
-                    if (opened)
-                        sub_abort();     /* outer job left as it was */
-                    if (hop && (subact != 1 || altbefore == 0)) {
-                        /* the stack written in user n is ours alone: remove
-                           it. With a live job there (altbefore > 0) its
-                           records cannot be taken back; see the limits. */
+                    rollbackbad = opened && sub_abort() != 0;
+                    if (hop) {
                         bdos(32, items[sel].user);
-                        sub_delete();
+                        if (sub_restore(subact == 1 ? altbefore : 0) != 0)
+                            rollbackbad = 1;
                         bdos(32, home);
                     }
-                    menu_error("Cannot write $$$.SUB", (char *)0, sel, has_back);
+                    menu_error(rollbackbad ? "Submit rollback failed; inspect both stacks" :
+                               "Cannot write $$$.SUB", (char *)0, sel, has_back);
                     continue;
                 }
 

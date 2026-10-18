@@ -254,6 +254,9 @@ the empty `$$$.sub` that the CCP leaves in user 4 once it is back home (see
   written, and a footer error is shown if they do not.
 
 
+Screen rows use BDOS string output to reduce console-call overhead; selection
+changes redraw only the two affected entries.
+
 ## Keys
 
 | Key | Action | Notes |
@@ -331,8 +334,9 @@ jobs to build nested jobs.
 - **User hop (`@n`):** `E`, `EP`, `E!`, `S`, `SP`, `S!` only, user 0 to 15, no
   drive. The program must be in user `n` (or a user-0 SYS file). If the
   `MCLEAN` record does not run, an empty `$$$.sub` stays in user `n` until the
-  next hop there. If the write to the current user fails after the user-`n`
-  records were added to a job already running there, those records stay.
+  next hop there. If writing the home stack fails, the user-`n` stack is
+  restored to its previous record count. A rollback disk error is reported
+  and requires inspecting both stacks before continuing.
 - **DR `SUBMIT.CMD` as an entry** replaces the whole `$$$.sub` stack, including
   the `MENU` re-launch and any outer job. Use `S` entries instead.
 - **Stack size:** `$$$.sub` holds at most 128 commands in total (the CCP only
@@ -375,6 +379,7 @@ files are taken from there and kept in this directory; they are not built here:
 
 ```
 make          # builds menu.cmd, msub.cmd, mclean.cmd, mcheck.cmd and hello.cmd
+make test-local # host rollback and screen-output checks (Python 3 and cc)
 make dist     # msub.zip: the programs above, sample .dat/.sub files
 make clean    # removes all generated files
 ```
