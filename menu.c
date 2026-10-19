@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include "conio.h"
 #include "menudat.h"
-#include "sub.h"
+#include "menuexec.h"
+#include "menukey.h"
 
 /*
  * Screen layout -- 80 cols x 24 rows, all coords 0-based (VT52 gotoxy is 0-based)
@@ -138,6 +139,7 @@ static void sappend(char *dst, char *src, int max)
 /* hand the screen back: clear, cursor on, line wrap on again */
 static void leave_screen()
 {
+    menu_keys_leave();
     clrscr();
     cursor(CURSOR_ON);
     wrapline(WRAPLINE_ON);
@@ -218,6 +220,7 @@ static void draw_screen(int sel, int has_back)
     int row;
     char foot[INNER_WIDTH + 1];
 
+    menu_keys_enter();
     clrscr();
     cursor(CURSOR_OFF);
     wrapline(WRAPLINE_OFF);     /* row 23 col 79 must not scroll */
@@ -287,69 +290,6 @@ static void menu_error(char *msg, char *arg, int sel, int has_back)
 
 /* ------------------------------------------------------------------ */
 
-/*
- * Build the re-launch command "[D:]MENU D:datfile /n[ /P]".
- * cmddrv: drive MENU.CMD was run from (sub_cmddrv(), 0 = none), so that
- *         "B:MENU" started from A> is re-launched from B.
- * datfile gets the current drive (BDOS 25) when it has no drive, so the
- * line is valid wherever the CCP runs it from.
- * /n brings the menu back on entry n (1-based); /P makes it wait for a key
- * first so the output of the entry stays on screen.
- */
-static void build_menucmd(char *menucmd, char *datfile, int cmddrv, int sel, int pause)
-{
-    int i;
-    int j;
-
-    j = 0;
-    if (cmddrv > 0) {
-        menucmd[j++] = (char)('A' + cmddrv - 1);
-        menucmd[j++] = ':';
-    }
-    menucmd[j++]='M'; menucmd[j++]='E'; menucmd[j++]='N'; menucmd[j++]='U';
-    menucmd[j++]=' ';
-    if (datfile[0] == '\0' || datfile[1] != ':') {
-        menucmd[j++] = (char)('A' + (bdos(25, 0) & 0x0F));
-        menucmd[j++] = ':';
-    }
-    for (i = 0; datfile[i] != '\0' && i < 64; i++)
-        menucmd[j++] = datfile[i];
-    menucmd[j++] = ' ';
-    menucmd[j++] = '/';
-    if (sel + 1 >= 10)
-        menucmd[j++] = (char)('0' + (sel + 1) / 10);
-    menucmd[j++] = (char)('0' + (sel + 1) % 10);
-    if (pause) {
-        menucmd[j++] = ' '; menucmd[j++] = '/'; menucmd[j++] = 'P';
-    }
-    menucmd[j] = '\0';
-}
-
-/*
- * Build "[D:]text n" for a stack record, e.g. "USER 4" or "B:MCLEAN 4".
- * drv: drive prefix (1=A..16=P), 0 = none. n is 0..99.
- */
-static void numrec(char *buf, int drv, char *text, int n)
-{
-    int i;
-    int j;
-
-    j = 0;
-    if (drv > 0) {
-        buf[j++] = (char)('A' + drv - 1);
-        buf[j++] = ':';
-    }
-    for (i = 0; text[i] != '\0'; i++)
-        buf[j++] = text[i];
-    buf[j++] = ' ';
-    if (n >= 10)
-        buf[j++] = (char)('0' + n / 10);
-    buf[j++] = (char)('0' + n % 10);
-    buf[j] = '\0';
-}
-
-/* ------------------------------------------------------------------ */
-
 int main(int argc, char **argv)
 {
     int  sel;
@@ -357,18 +297,20 @@ int main(int argc, char **argv)
     int  c;
     int  has_back;
     char datfile[65];
-    char menucmd[96];   /* "[D:]MENU D:datfile /n /P" -- re-launch command */
     int  startsel;      /* /n: entry to select on the first load, 0 = none */
     int  pause;         /* /P: wait for a key before drawing */
-    int  cmddrv;
-    int  subact;        /* started from $$$.SUB: 1 yes, 0 no, -1 unknown */
+    menu_exec_t exec;
+    char *error;
+    int result;
     int  type;
 
-    /* $$$.SUB hand-over relies on the CP/M-86 1.1 (BDOS 2.2) CCP */
-    if ((bdos(12, 0) & 0xFF) != 0x22) {
-        screen_puts("CP/M-86 1.1 required\r\n");
+    error = menu_exec_init(&exec);
+    if (error) {
+        screen_puts(error); screen_puts("\r\n");
         return 1;
     }
+
+    menu_keys_init(exec.mode == MEXEC_CLI);
 
     /* MENU [datfile] [/n] [/P] */
     datfile[0]='m'; datfile[1]='e'; datfile[2]='n';
@@ -405,14 +347,12 @@ int main(int argc, char **argv)
         getch();
     }
 
-    cmddrv = sub_cmddrv();
-    subact = sub_active();
-
 reload:
     sel = 0;
 
     count = load_menu(items, MAX_ENTRIES, datfile);
     if (count == 0) {
+        menu_keys_leave();
         wrapline(WRAPLINE_ON);      /* may come from B after a draw */
         cursor(CURSOR_ON);
         screen_puts("\r\nNo entries found in: "); screen_puts(datfile); screen_puts("\r\n");
@@ -431,15 +371,7 @@ reload:
     draw_screen(sel, has_back);
 
     for (;;) {
-        c = getch();
-
-        /* ESC prefix: VT52 arrow key */
-        if (c == 27) {
-            c = getch();
-            if      (c == 'A') c = 'k';  /* up   */
-            else if (c == 'B') c = 'j';  /* down */
-            else               continue;
-        }
+        c = menu_key_read();
 
         if (c == 'k' || c == 'K') {
             if (sel == 0) continue;
@@ -487,139 +419,26 @@ reload:
                 continue;
             }
 
-            /* E / E! / S / S! / C / C! : hand over to the CCP via $$$.SUB */
-            {
-                int remenu;
-                int n;
-                int i;
-                int bad;
-                int opened;
-                int rollbackbad;
-                int home;       /* user area MENU runs in */
-                int hop;        /* run the entry in user area items[sel].user */
-                int altbefore;  /* records already in $$$.SUB of user n */
-                int need;       /* records to push, for the capacity check */
-                char rec[32];   /* USER / MCLEAN stack record */
-
-                /* @n equal to the current user is no hop at all */
-                home = bdos(32, 0xFF) & 0xFF;
-                hop  = (items[sel].user >= 0 && items[sel].user != home);
-
-                /* E, S and C re-launch MENU (on the current dat, so also
-                   from a sub-menu); E!, S! and C! do not */
-                remenu = (type == MTYPE_E || type == MTYPE_S || type == MTYPE_C);
-
-                /* read and check the .sub file before touching $$$.SUB */
-                n = 0;
-                if (type == MTYPE_S || type == MTYPE_SNR) {
-                    n = sub_load(items[sel].cmd);
-                    if (n <= 0) {
-                        menu_error(sub_errmsg(n), sub_name(), sel, has_back);
-                        continue;
-                    }
-                }
-
-                /* built here so it follows M sub-menu navigation */
-                build_menucmd(menucmd, datfile, cmddrv, sel, items[sel].pause);
-
-                if ((type == MTYPE_C || type == MTYPE_CNR) && !remenu) {
-                    /* chain without coming back: inside a SUBMIT job the
-                       rest of the job runs after it, otherwise drop any
-                       stale $$$.SUB and leave MDSUBE alone */
-                    if (subact != 1)
-                        sub_delete();
-                    leave_screen();
-                    p_chain(items[sel].cmd, subact == 1); /* no return */
-                    return 0;
-                }
-
-                /* User hop: the CCP only reads $$$.SUB of its own user, and
-                   "USER n" does not warm boot, so the stack of user n is read
-                   next. Write that stack first (in user n):
-                       USER home (bottom), then the command or the S file.
-                   The home stack below ends with MCLEAN n, USER n (top). */
-                if (hop) {
-                    /* Both stacks must fit in 128 records before anything is
-                       written: a failure after the first one cannot always be
-                       undone. sub_records() writes nothing. */
-                    need = (remenu ? 1 : 0) + 2;
-                    if (subact == 1 && sub_records() + need > 128) {
-                        menu_error("Too many commands in $$$.SUB", (char *)0, sel, has_back);
-                        continue;
-                    }
-                    bdos(32, items[sel].user);
-                    altbefore = sub_records();
-                    need = 1 + ((type == MTYPE_S || type == MTYPE_SNR) ? n : 1);
-                    if (subact == 1 && altbefore + need > 128) {
-                        bdos(32, home);
-                        menu_error("Too many commands in $$$.SUB (user area)", (char *)0, sel, has_back);
-                        continue;
-                    }
-                    numrec(rec, 0, "USER", home);
-                    opened = (sub_open(subact == 1 ? SUB_APPEND : SUB_CREATE) == 0);
-                    bad = !opened;
-                    if (!bad)
-                        bad = (sub_append(rec) != 0);
-                    if (!bad && (type == MTYPE_S || type == MTYPE_SNR))
-                        bad = (sub_pushall() != 0);
-                    else if (!bad)
-                        bad = (sub_append(items[sel].cmd) != 0);
-                    if (!bad)
-                        bad = (sub_close() != 0);
-                    if (bad && opened)
-                        sub_abort();     /* before leaving user n */
-                    bdos(32, home);
-                    if (bad) {
-                        menu_error("Cannot write $$$.SUB in user area", (char *)0, sel, has_back);
-                        continue;
-                    }
-                }
-
-                /* records are a stack: first written = bottom = runs last.
-                   Inside a SUBMIT job push on top of what is left of it. */
-                opened = (sub_open(subact == 1 ? SUB_APPEND : SUB_CREATE) == 0);
-                bad = !opened;
-                if (!bad && remenu)
-                    bad = (sub_append(menucmd) != 0);
-                if (!bad && hop) {
-                    numrec(rec, cmddrv, "MCLEAN", items[sel].user);
-                    bad = (sub_append(rec) != 0);
-                    if (!bad) {
-                        numrec(rec, 0, "USER", items[sel].user);
-                        bad = (sub_append(rec) != 0);
-                    }
-                } else if (!bad && (type == MTYPE_S || type == MTYPE_SNR)) {
-                    bad = (sub_pushall() != 0);
-                } else if (!bad && (type == MTYPE_E || type == MTYPE_ENR)) {
-                    bad = (sub_append(items[sel].cmd) != 0);
-                }
-                if (!bad)
-                    bad = (sub_close() != 0);
-                if (bad) {
-                    rollbackbad = opened && sub_abort() != 0;
-                    if (hop) {
-                        bdos(32, items[sel].user);
-                        if (sub_restore(subact == 1 ? altbefore : 0) != 0)
-                            rollbackbad = 1;
-                        bdos(32, home);
-                    }
-                    menu_error(rollbackbad ? "Submit rollback failed; inspect both stacks" :
-                               "Cannot write $$$.SUB", (char *)0, sel, has_back);
-                    continue;
-                }
-
-                leave_screen();
-                if (type == MTYPE_C)
-                    p_chain(items[sel].cmd, 1);  /* no return on success */
-                else
-                    sub_exit();                  /* MDSUBE + BDOS 0, no return */
-                return 0;
+            error = menu_exec_prepare(&exec, &items[sel], datfile, sel);
+            if (error) {
+                menu_error(error, exec.error_arg, sel, has_back);
+                continue;
             }
+            leave_screen();
+            result = menu_exec_run(&exec, &items[sel]);
+            if (result == MEXEC_ERROR) {
+                menu_error("Cannot launch command: ", exec.command, sel, has_back);
+                continue;
+            }
+            if (result == MEXEC_EXIT) return 0;
+            if (items[sel].pause) {
+                screen_puts("\r\nPress any key to return to the menu...");
+                getch();
+            }
+            draw_screen(sel, has_back);
 
         } else if ((c == 'q' || c == 'Q') && !menu_quit_disabled) {
-            /* inside a SUBMIT job the CCP carries on with the rest of it */
-            if (subact != 1)
-                sub_delete();
+            menu_exec_quit(&exec);
             leave_screen();
             return 0;
 

@@ -21,6 +21,17 @@
             mov     sp,offset stk + 32
             sti
 
+; ---- only the CP/M-86 1.1 CCP stack is supported ---------------------
+            mov     cx,12
+            int     0E0h
+            cmp     al,22h
+            je      version_ok
+            mov     cx,9
+            mov     dx,offset wrongvers
+            int     0E0h
+            jmp     quit
+version_ok:
+
 ; ---- parse the user number (0-15) from the command tail -------------
             mov     bx,80h
             mov     cl,[bx]         ; tail length
@@ -92,6 +103,8 @@ restore:
 quit:
             xor     cx,cx
             int     0E0h
+
+wrongvers   db      'CP/M-86 1.1 required',13,10,'$'
 
 new_user    db      0
 home_user   db      0

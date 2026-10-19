@@ -3,6 +3,43 @@
 Related: [README.md](README.md) (syntax), [submit-flow.md](submit-flow.md)
 (how the command queue works).
 
+## Automated checks
+
+`make test-local` runs host fault injection for legacy rollback and stack
+ordering, concurrent E/S/C and ! execution, repeated resident actions, pause,
+M/Back navigation, context restoration, nested priorities and command bounds.
+It also requires the existing terminal-output hash and console-call budget.
+
+`make test-runtime` builds all CMDs and runs emu2 smoke tests in a disposable
+directory: MSUB and MCLEAN reject non-2.2 versions without touching an empty
+stack; MCLEAN still deletes an empty stack on 2.2; sample menu parsing and MSUB
+`/N` still work. emu2 does not verify real concurrent scheduling.
+
+## Concurrent system validation
+
+Use a booted Concurrent CP/M-86 >= 3.0 system with MENU, native SUBMIT and the
+commands referenced by the test menu available. Do not use MSUB or MCLEAN.
+
+1. Check Up/Down with the physical arrow keys, then J/K, including after
+   returning from an action. Run E twice, then C twice: the action gets the console and MENU returns to
+   the same selection each time, with no MENU restart or `$$$.SUB` changes.
+2. Use M to enter a submenu, launch its second entry, then Back: selection is
+   retained after the action and Back still navigates normally.
+3. Run S with a native script containing multiple commands and parameters:
+   MENU returns after the foreground job finishes. Repeat from a MENU started
+   inside an outer native SUBMIT job; Quit should let that job continue.
+4. Check EP, SP and CP pause after output; E!, S! and C! exit only after the
+   action and context restoration.
+5. From user 0 run E@4 and S@4 with programs/scripts available in user 4.
+   Verify the action sees user 4 and MENU returns in user 0. Test a native
+   SUBMIT USER/$GLOBAL user/drive change as well.
+6. Try a missing command, missing SUBMIT and a script error. Direct launch
+   failure stays in MENU; native SUBMIT reports its own script errors.
+7. Confirm MSUB and MCLEAN display `CP/M-86 1.1 required` on the concurrent
+   system and leave existing submit files untouched.
+
+The remaining sections describe **CP/M-86 1.1 legacy behaviour**.
+
 ## 0. How to read this plan
 
 Every test has the same three lines:

@@ -1,14 +1,61 @@
-# Menu — CP/M-86 1.1 Application Menu
+# Menu — CP/M-86 and Concurrent CP/M-86 Application Menu
 
-A lean interactive launch menu for CP/M-86 1.1 (BDOS 2.2; `menu.cmd` refuses
-to start on any other version, as the submit management is radically different starting with BDOS 3.0, using real process management). Reads `menu.dat`, displays a navigable list, and launches the chosen program via `$$$.sub` so the CCP picks it up on exit. 
-It can be considered as an invented precursor to the concurrent dos batch menu but for BDOS 2.2. The foundation is the submit management by CCP.
-It is also an nice way to illustrate a solution/workaround to the lack of process management in BDOS 2.2.
+A lean interactive launch menu with automatic selection of its execution backend.
+On CP/M-86 1.1 (BDOS 2.2), the existing CCP `$$$.SUB` stack runs actions and
+restarts MENU. On a concurrent system with BDOS >= 3.0, MENU stays resident,
+runs actions with `p_cli`, and resumes the same menu and selection. Concurrent
+MENU never reads, writes or deletes `$$$.SUB`, and never queues a MENU restart.
+Other systems are rejected.
 
-
-This menu program is accompanied by an msub.cmd command which is a clean room replacement for submit more tolerant to badly shaped content (ignore empty lines, comments starting with ';' space trimming ...)
+MSUB, the tolerant SUBMIT replacement, and MCLEAN, the legacy stack cleanup
+helper, are CP/M-86 1.1 tools only. Both refuse BDOS versions other than 2.2.
 
 ![MENU running on CP/M-86 1.1](images/menu.png)
+
+## Concurrent execution
+
+The `.dat` format and navigation keys are shared by both backends:
+
+| Entry | Concurrent behaviour |
+|---|---|
+| `M`, `M!` | Navigate between menus in-process as before. |
+| `E`, `EP` | Pass the configured command directly to `p_cli`. |
+| `S`, `SP` | Pass `SUBMIT file parameters` to `p_cli`; native SUBMIT must be available. |
+| `C`, `CP` | Execute exactly like `E`, `EP`; no chaining. |
+| `E!`, `S!`, `C!` | Run the action, reclaim the console, restore context, then exit MENU. |
+| `Q` | Exit MENU (unless disabled by `Q!`); an enclosing job can continue. |
+
+MENU saves its user, drive and process priority, applies an `@n` user suffix
+when present, launches the action, and reclaims the console before restoring
+the saved context. Restoration also runs after launch failure and before a
+`!` exit. The wait priority runs ahead of the parent and TMP (at most 197) and is established
+before launch so nested SUBMIT can derive its own priority correctly. An
+unavailable or unsafe parent priority is reported before launching.
+
+On the concurrent console, MENU disables programmable function-key expansion
+with `ESC 6` while displayed and recognizes the XIOS Up/Down codes (`C8h` /
+`D0h`). It restores normal expansion with `ESC 7` before launching an action
+or exiting, and selects raw keys again when the menu returns. CP/M's existing
+VT52 arrow sequences and the J/K keys remain supported.
+
+Only S entries automatically add `SUBMIT`. E and C pass their command unchanged.
+Returning actions redraw the resident menu without reloading the `.dat` file.
+`EP`, `SP` and `CP` wait for a key before redrawing. A failed launch reports a
+footer error and keeps MENU open, including for a `!` entry.
+
+Native SUBMIT owns script parsing, parameters, nesting and script-error
+messages. It does not use MENU's tolerant `sub_load` parser, so script syntax
+and limits can differ from the CP/M backend. With `S@n`, native SUBMIT resolves
+the script from the selected user's context; on CP/M the script is read from
+MENU's original user and its expanded commands run in user n. The existing
+restriction of `@n` to E and S variants is unchanged.
+
+`p_cli` launch failure is checked; an executed program's exit code is not
+interpreted. Console reattachment follows the foreground action's console
+lifecycle, not a general wait for arbitrary detached background work.
+
+The stack, restart, MCLEAN, and tolerant S-file rules described below apply to
+the **CP/M-86 1.1 backend**. The table above describes their concurrent equivalents.
 
 ## Installation
 
@@ -100,10 +147,10 @@ Maximum 15 entries per file.
 | `CT` | `CT{n}` | Title foreground colour `n` (0–15, default 14). Optional; the number may follow a blank (`CT 11`). |
 | `CI` | `CI{n}` | Foreground colour `n` (0–15, default 14) of the entries that are not selected. Optional. |
 | `Q!` | `Q!` | Disable the `Q`/Quit key entirely. |
-| `E` | `E {label} \| {command}` | Launch command; re-launch `MENU` afterwards (stays in menu loop). |
+| `E` | `E {label} \| {command}` | Launch command; return to the menu afterwards. |
 | `EP` | `EP {label} \| {command}` | As `E`, then wait for a key before the menu redraws (output stays visible). |
 | `E!` | `E! {label} \| {command}` | Launch command; exit cleanly — no `MENU` re-launch. |
-| `S` | `S {label} \| {file} [{params}]` | Run a SUBMIT file; re-launch `MENU` afterwards. |
+| `S` | `S {label} \| {file} [{params}]` | Run a SUBMIT file; return to the menu afterwards. |
 | `SP` | `SP {label} \| {file} [{params}]` | As `S`, then wait for a key once the whole file has run. |
 | `S!` | `S! {label} \| {file} [{params}]` | Run a SUBMIT file; exit cleanly — no `MENU` re-launch. |
 | `M` | `M {label} \| {menu.dat}` | Selectable entry: load a sub-menu in-process. |
@@ -325,8 +372,8 @@ jobs to build nested jobs.
 
 ## Limitations
 
-- **CP/M-86 1.1 only.** `menu.cmd` checks for BDOS 2.2 at start. The hand-over
-  to the CCP also requires the known CCP layout (signature check, see
+- **Legacy backend: CP/M-86 1.1 only.** The hand-over
+  to the CCP requires the known CCP layout (signature check, see
   [submit-flow.md](submit-flow.md)). On an unrecognised CCP the commands are
   written to `$$$.sub` but the CCP is not told to run them.
 - **No bare drive or user change in a chain.** `B:` or `USER n` as an entry or
@@ -379,7 +426,8 @@ files are taken from there and kept in this directory; they are not built here:
 
 ```
 make          # builds menu.cmd, msub.cmd, mclean.cmd, mcheck.cmd and hello.cmd
-make test-local # host rollback and screen-output checks (Python 3 and cc)
+make test-local # host legacy/concurrent execution and screen-output checks
+make test-runtime # built CMD version guards and parser checks (emu2)
 make dist     # msub.zip: the programs above, sample .dat/.sub files
 make clean    # removes all generated files
 ```

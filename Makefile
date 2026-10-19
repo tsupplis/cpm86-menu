@@ -18,8 +18,10 @@ all: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd
 # --------------------------------------------------------------------
 # Link targets
 # --------------------------------------------------------------------
-menu.cmd: menu.o menudat.o util.lib 
-	$(LD) -o $@ menu.o menudat.o util.lib $(LDFLAGS)
+MENU_OBJ = menu.o menudat.o menuexec.o menusub.o menuexe.o menukey.o
+
+menu.cmd: $(MENU_OBJ) util.lib
+	$(LD) -o $@ $(MENU_OBJ) util.lib $(LDFLAGS)
 
 msub.cmd: msub.o util.lib
 	$(LD) -o $@ msub.o util.lib $(LDFLAGS)
@@ -32,6 +34,13 @@ hello.cmd: hello.o util.lib
 # the one-pass linker has already passed
 mcheck.cmd: mcheck.o menudatk.o util.lib
 	$(LD) -o $@ mcheck.o menudatk.o util.lib util.lib $(LDFLAGS)
+
+menu.o menukey.o: menukey.h
+menukey.o: conio.h
+$(MENU_OBJ): menudat.h
+menu.o menuexec.o menusub.o menuexe.o: menuexec.h
+menuexec.o menusub.o menuexe.o: util.h
+menuexec.o menusub.o: sub.h
 
 menudatk.o: menudat.c menudat.h
 	$(CC) $(CFLAGS) -DMCHECK -o $@ menudat.c
@@ -101,6 +110,9 @@ clean:
 
 test-local:
 	python3 tools/check.py
+
+test-runtime: all
+	python3 tools/runtime.py
 
 test: cpm86test
 

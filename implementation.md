@@ -1,6 +1,7 @@
 # Implementation overview
 
-How `menu.cmd` is built and how its parts fit. For the CCP hand-over, see
+How `menu.cmd` is built and how its parts fit. The stack diagrams in sections
+4–6 describe only the CP/M-86 1.1 backend. For the CCP hand-over, see
 [submit-flow.md](submit-flow.md).
 
 ## 1. Modules
@@ -8,7 +9,10 @@ How `menu.cmd` is built and how its parts fit. For the CCP hand-over, see
 ```mermaid
 flowchart LR
     subgraph SRC["sources (in cpm86-menu)"]
-        MC["menu.c<br/>UI, launch"]
+        MC["menu.c<br/>UI, navigation"]
+        ME["menuexec.c<br/>backend dispatch"]
+        SB["menusub.c<br/>legacy stack/restart"]
+        EX["menuexe.c<br/>resident P_CLI"]
         MD["menudat.c<br/>.dat parser"]
         MS["msub.c<br/>SUBMIT replacement"]
         MK["mcheck.c<br/>.dat checker"]
@@ -28,6 +32,11 @@ flowchart LR
     UT --> UL
     MC --> CMD["menu.cmd"]
     MD --> CMD
+    MC --> ME
+    ME --> SB
+    ME --> EX
+    SB --> CMD
+    EX --> CMD
     UL --> CMD
     LC["Aztec libc<br/>(-lc86)"] --> CMD
     MS --> MSC["msub.cmd"]
@@ -49,7 +58,11 @@ segment, a 32-byte stack inside the image).
 
 | File | Key functions used by menu / msub |
 |---|---|
-| `menu.c` | `main`, `draw_screen`, `draw_entry`, `build_menucmd`, `numrec` (`USER n` / `MCLEAN n` records), `menu_error` |
+| `menu.c` | `main`, `draw_screen`, `draw_entry`, `menu_error` |
+| `menukey.c` / `menukey.h` | Concurrent raw arrow decoding; ESC 6 on display, ESC 7 on handover/exit; legacy VT52 input unchanged |
+| `menuexec.c` / `menuexec.h` | `menu_exec_init`, `menu_exec_prepare`, `menu_exec_run`, `menu_exec_quit`; dispatch and execution context |
+| `menusub.c` | `build_menucmd`, `numrec`, `menusub_prepare`, `menusub_run`; unchanged legacy stack/rollback and handover |
+| `menuexe.c` | `menuexe_prepare`, `menuexe_run`; native SUBMIT prefix for S only, length checks, user/drive/priority restoration, console recovery |
 | `msub.c` | `main`: banner, usage, `/N` check, `sub_load` → push → `sub_exit` |
 | `menudat.c` | `load_menu` → `items[]`, `menu_title`, `menu_back`, `menu_quit_disabled`, `menu_has_snr`; uses `sub_readln`; parses the `@n` suffix |
 | `mcheck.c` | `main`: `load_menu` with the `menu_diag` hook, prints `INF:` / `WRN:` / `ERR:` |
@@ -65,16 +78,17 @@ segment, a 32-byte stack inside the image).
 
 ```mermaid
 flowchart TD
-    A["BDOS 12 = 22h ?"] -- no --> X["'CP/M-86 1.1 required'<br/>exit"]
-    A -- yes --> B["parse args<br/>file.dat  /n  /P"]
-    B --> C["cmddrv = sub_cmddrv()<br/>subact = sub_active()"]
-    C --> D{"/P ?"}
-    D -- yes --> E["'Press any key…'<br/>getch"]
-    D -- no --> F
-    E --> F["load_menu(datfile)"]
-    F -- "0 entries" --> Y["usage<br/>exit"]
-    F --> G["sel = /n - 1<br/>draw_screen"]
-    G --> L["key loop"]
+    A["menu_exec_init: BDOS 12"] --> V{"version"}
+    V -- "22h" --> SUB["SUB backend: sub_cmddrv + sub_active"]
+    V -- ">= 30h and concurrent system type" --> CLI["CLI backend: no CCP access"]
+    V -- "otherwise" --> X["report unsupported system; exit"]
+    SUB --> B["parse args: file.dat /n /P"]
+    CLI --> B
+    B --> P{"/P?"}
+    P -- yes --> W["wait for key"]
+    P -- no --> L["load_menu; apply selection; draw"]
+    W --> L
+    L --> K["key loop"]
 ```
 
 ## 3. Key loop
@@ -84,7 +98,9 @@ flowchart TD
     K["getch"] --> J{"key"}
     J -- "K / J / arrows" --> R["redraw 2 rows"] --> K
     J -- "B (M! set)" --> BK["datfile = menu_back<br/>reload"] --> K
-    J -- "Q (no Q!)" --> Q{"subact = 1 ?"}
+    J -- "Q (no Q!)" --> QB{"backend"}
+    QB -- concurrent --> QE["exit without touching submit files"]
+    QB -- legacy --> Q{"subact = 1 ?"}
     Q -- no --> QD["sub_delete<br/>exit"]
     Q -- yes --> QK["keep file, exit<br/>outer job continues"]
     J -- Enter --> T{"type"}
@@ -93,6 +109,33 @@ flowchart TD
 ```
 
 ## 4. Launch
+
+Both backends prepare before the UI calls `leave_screen`. Prepare returns a
+message and optional argument for footer errors. `menu_exec_run` returns
+`MEXEC_RESUME`, `MEXEC_EXIT` or `MEXEC_ERROR` on concurrent systems. Legacy
+handover normally does not return.
+
+Concurrent execution:
+
+```mermaid
+flowchart TD
+    A["prepare: command unchanged for E/C; SUBMIT prefix for S"] --> B["check length and process priorities"]
+    B --> C["UI releases screen"]
+    C --> D["save user/drive; apply @n; set priority ahead of parent/TMP"]
+    D --> E["p_cli"]
+    E -- success --> F["conattach"]
+    E -- failure --> G["restore priority, user and drive"]
+    F --> G
+    G --> H{"outcome"}
+    H -- failure --> ERR["footer error; stay in menu"]
+    H -- "!" --> EXIT["exit MENU"]
+    H -- normal --> R["optional pause; redraw same menu and selection"]
+```
+
+No concurrent action reads or writes `$$$.SUB`, uses `p_chain`, reloads MENU,
+or reconstructs a restart command. `M` and Back remain frontend navigation.
+
+### CP/M-86 1.1 stack backend
 
 ```mermaid
 flowchart TD
@@ -110,14 +153,14 @@ flowchart TD
     AL --> OP
     H0 -- no --> OP["sub_open<br/>APPEND if subact = 1, else CREATE"]
     OP --> PU["push: menucmd (if remenu)<br/>then sub_pushall / cmd<br/>(hop: MCLEAN n, USER n instead)"]
-    PU -- "write fails" --> AB["sub_abort<br/>if hop: delete the user n file<br/>menu_error"]
+    PU -- "write fails" --> AB["sub_abort<br/>if hop: restore target record count<br/>menu_error"]
     PU --> CL["sub_close"]
     CL --> W{"C / CP ?"}
     W -- yes --> PC["p_chain(cmd, 1)"]
     W -- no --> SE["sub_exit<br/>setsub + BDOS 0"]
 ```
 
-Exit-only rule: a `.dat` with `M!` and no `S!` entry → `remenu = 0`.
+Only `E!`, `S!` and `C!` suppress the restart; `M!` only defines Back.
 
 The hop branch (`@n`, E and S types only) writes the user-n stack first so a
 failure there leaves nothing in the home user. The records and the CCP side of
@@ -167,7 +210,7 @@ flowchart LR
 | `pause` | int | 1 for `EP` / `SP` / `CP` |
 | `user` | int | `@n` suffix, 0 to 15; `-1` = none |
 
-**Hop records** (`numrec` in `menu.c`)
+**Hop records** (`numrec` in `menusub.c`)
 
 ```text
 user n stack (bottom to top):   USER <home>   <cmd | S lines>
@@ -185,3 +228,8 @@ home stack (bottom to top):     [outer job]  [MENU ...]  [<drv>:]MCLEAN n  USER 
 | `$$$.SUB` | 128 records | write fails → `sub_abort` |
 | hop: both stacks | 128 records each | checked before writing, `menu_error` |
 | `@n` | 0 to 15 | line skipped (`ERR:` in MCHECK) |
+
+The S-file and stack limits above apply to the legacy backend. Concurrent S
+entries allow at most 120 characters of file and parameters, leaving seven
+characters for `SUBMIT ` within the 127-character P_CLI wrapper limit. Native
+SUBMIT owns script-content limits. E/C retain the 125-character `.dat` limit.
