@@ -1,5 +1,6 @@
 ;
-; MCLEAN n - delete an empty $$$.SUB in user area n (current drive).
+; MCLEAN n [F] - delete an empty $$$.SUB in user area n (current drive).
+; With [F or [F] the file is deleted whatever it holds.
 ;
 ; Written by MENU to the home stack after a user hop (E@n, S@n, ...):
 ; the CCP leaves a 0-record $$$.SUB behind in user n once the last record
@@ -48,7 +49,9 @@ next_ch:
             ja      not_digit
             inc     di
             cmp     di,3
-            jnb     quit            ; 3 digits: not a user number
+            jb      digits_ok
+            jmp     usage           ; 3 digits: not a user number
+digits_ok:
             mov     bl,al           ; bl = digit
             mov     al,dl
             mov     ah,10
@@ -59,13 +62,36 @@ next_ch:
 not_digit:
             cmp     di,0
             jz      next_ch         ; still before the number: skip
+            dec     si              ; give the terminator back
+            inc     cx
 parsed:
             cmp     di,0
-            jz      quit            ; no number
+            jnz     have_num
+            jmp     usage           ; no number
+have_num:
             cmp     dl,15
-            ja      quit            ; not a user number
+            jbe     user_ok
+            jmp     usage           ; not a user number
+user_ok:
             mov     bx,offset new_user
             mov     [bx],dl
+; ---- optional [F or [F] after the number: delete unconditionally -------------
+scan_f:
+            jcxz    scanned
+            lodsb
+            dec     cx
+            cmp     al,'['
+            jne     scan_f
+            jcxz    scanned
+            lodsb
+            dec     cx
+            or      al,20h
+            cmp     al,'f'
+            jne     scan_f
+            mov     al,1
+            mov     bx,offset force
+            mov     [bx],al
+scanned:
 
 ; ---- remember the current user, switch to n -------------------------
             mov     cx,32
@@ -86,9 +112,15 @@ parsed:
             cmp     al,3
             ja      restore         ; not found (0ffh)
             mov     bx,offset fcb
+            mov     bx,offset force
+            mov     al,[bx]
+            cmp     al,0
+            jnz     do_delete       ; F: delete whatever it holds
+            mov     bx,offset fcb
             mov     al,15[bx]       ; record count of the first extent
             cmp     al,0
             jnz     restore         ; live job: leave it alone
+do_delete:
             mov     cx,19
             mov     dx,offset fcb
             int     0E0h
@@ -100,14 +132,26 @@ restore:
             xor     dh,dh
             mov     cx,32
             int     0E0h
+            jmp     quit
+usage:
+            mov     cx,9
+            mov     dx,offset usagemsg
+            int     0E0h
 quit:
             xor     cx,cx
             int     0E0h
+
+usagemsg    db      'USAGE: MCLEAN {user} [OPTIONS]',13,10
+            db      '  {user}  user area 0-15 to clean (current drive)',13,10
+            db      '  [F]     delete the submit file even if it has records',13,10
+            db      '          (the closing bracket is optional)',13,10
+            db      'Without [F], only an empty submit file is deleted.',13,10,'$'
 
 wrongvers   db      'CP/M-86 1.1 required',13,10,'$'
 
 new_user    db      0
 home_user   db      0
+force       db      0
 
 ; FCB: current drive, '$$$     SUB', rest zero (36 bytes)
 fcb         db      0

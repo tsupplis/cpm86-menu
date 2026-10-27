@@ -5,12 +5,12 @@
 #include "menuexec.h"
 
 /*
- * Build the re-launch command "[D:]MENU D:datfile /n[ /P]".
+ * Build the re-launch command "[D:]MENU D:datfile [nP]".
  * cmddrv: drive MENU.CMD was run from (sub_cmddrv(), 0 = none), so that
  *         "B:MENU" started from A> is re-launched from B.
  * datfile gets the current drive (BDOS 25) when it has no drive, so the
  * line is valid wherever the CCP runs it from.
- * /n brings the menu back on entry n (1-based); /P makes it wait for a key
+ * n brings the menu back on entry n (1-based); P makes it wait for a key
  * first so the output of the entry stays on screen.
  */
 static void build_menucmd(char *menucmd, char *datfile, int cmddrv, int sel, int pause)
@@ -32,13 +32,13 @@ static void build_menucmd(char *menucmd, char *datfile, int cmddrv, int sel, int
     for (i = 0; datfile[i] != '\0' && i < 64; i++)
         menucmd[j++] = datfile[i];
     menucmd[j++] = ' ';
-    menucmd[j++] = '/';
+    menucmd[j++] = '[';
     if (sel + 1 >= 10)
         menucmd[j++] = (char)('0' + (sel + 1) / 10);
     menucmd[j++] = (char)('0' + (sel + 1) % 10);
-    if (pause) {
-        menucmd[j++] = ' '; menucmd[j++] = '/'; menucmd[j++] = 'P';
-    }
+    if (pause)
+        menucmd[j++] = 'P';
+    menucmd[j++] = ']';
     menucmd[j] = '\0';
 }
 

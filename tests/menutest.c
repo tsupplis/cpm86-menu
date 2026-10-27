@@ -261,8 +261,13 @@ static void legacy_success_tests(void)
         if (t == MTYPE_S) require(home == 4 && !strcmp(home_records[2], "SECOND") && !strcmp(home_records[3], "FIRST"), "S LIFO expansion");
         if (t == MTYPE_SNR) require(home == 3 && exited == 1, "S! has no restart");
         if (t == MTYPE_E || t == MTYPE_S || t == MTYPE_C)
-            require(!strcmp(home_records[1], "MENU A:menu.dat /1"), "legacy restart command");
+            require(!strcmp(home_records[1], "MENU A:menu.dat [1]"), "legacy restart command");
     }
+    setup(); entry_type = MTYPE_E; entry_user = -1; entry_pause = 1; loaded_lines = 2;
+    require(menu_exec_init(&ctx) == 0, "legacy pause init");
+    load_menu(&item, 1, "menu.dat");
+    require(menu_exec_prepare(&ctx, &item, "menu.dat", 11) == 0, "legacy pause prepare");
+    require(!strcmp(home_records[1], "MENU A:menu.dat [12P]"), "restart command with pause");
     setup(); require(menu_exec_init(&ctx) == 0, "hop init");
     load_menu(&item, 1, "menu.dat");
     require(menu_exec_prepare(&ctx, &item, "menu.dat", 0) == 0, "hop prepare");

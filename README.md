@@ -73,16 +73,17 @@ the **CP/M-86 1.1 backend**. The table above describes their concurrent equivale
 ### MENU
 
 ```
-MENU [file.dat] [/n] [/P]
+MENU [file.dat] [[nPR]]
 ```
 
 | Argument | Meaning |
 |---|---|
 | `file.dat` | Menu file to load (default `menu.dat`), drive prefix allowed. |
-| `/n` | Start with entry `n` (1-based) selected. Ignored (entry 1 is selected) if `n` is 0 or beyond the number of entries, e.g. after the `.dat` was edited. |
-| `/P` | Show "Press any key to return to the menu" and wait before drawing. |
+| `[n` | Start with entry `n` (1-based) selected. Ignored (entry 1 is selected) if `n` is 0 or beyond the number of entries, e.g. after the `.dat` was edited. |
+| `[P` | Show "Press any key to return to the menu" and wait before drawing. |
+| `[R` | Reset: delete `$$$.sub` (current drive and user) before starting, and run as if started from the keyboard. The rest of an enclosing SUBMIT job is lost. Not needed after a plain boot (see [Nesting](#nesting-menu-inside-a-submit-job)); useful to clear a stale file left by an aborted job. CP/M-86 1.1 only. |
 
-`/n` and `/P` are mostly written by `menu.cmd` itself in the re-launch line,
+Options go in one bracket group, CP/M style, and the closing `]` is optional: `[3]`, `[2P]`, `[R]`, `[3PR` are all valid. `[R]` is typed by hand; `menu.cmd` never writes it. `[n` and `[P` are mostly written by `menu.cmd` itself in the re-launch line,
 so the menu comes back on the entry that was run and, for `EP`/`SP`/`CP`
 entries, after a key press.
 
@@ -130,6 +131,9 @@ Written by `MENU` into `$$$.sub` after an entry that ran in user area `n`
 (see [Running in another user area](#running-in-another-user-area)). It
 deletes an empty `$$$.sub` left in user `n` and does nothing if the file still
 holds commands. It is not meant to be typed.
+
+`MCLEAN n [F]` (the closing bracket is optional) deletes the file whatever it holds (use with care: a live job in that
+user area loses its remaining commands).
 
 
 ## menu.dat Format
@@ -255,7 +259,7 @@ Expanded by `menu.cmd` itself with the DR `SUBMIT` rules, then pushed on the
 ### Drives and user areas
 
 - The re-launch line written to `$$$.sub` is drive-qualified:
-  `[D:]MENU D:file.dat /n [/P]`. The `MENU` prefix is the drive `menu.cmd` was started
+  `[D:]MENU D:file.dat [n]` (`[nP]` with a key press). The `MENU` prefix is the drive `menu.cmd` was started
   from (e.g. `B:MENU` typed at `A>`), read from the CCP command buffer; the
   `.dat` file gets the current drive when it has none.
 - Programs that change drive or user themselves (BDOS 14/32) are fine: the CCP

@@ -67,7 +67,7 @@ os.o: os.asm
 # --------------------------------------------------------------------
 # Test image
 # --------------------------------------------------------------------
-cpmtest.img: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub soak/* soak4/*
+cpmtest.img: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub tests/soak/* tests/soak4/*
 	cp cpmbase.img cpmtest.img
 	cpmcp -f ibmpc-514ss cpmtest.img menu.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img msub.cmd 0:
@@ -77,24 +77,24 @@ cpmtest.img: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd menu.dat menu1.da
 	cpmcp -f ibmpc-514ss cpmtest.img *.dat 0:
 	cpmcp -f ibmpc-514ss cpmtest.img batch.sub 0:
 	cpmcp -f ibmpc-514ss cpmtest.img nest.sub 0:
-	cpmcp -f ibmpc-514ss cpmtest.img soak/* 0:
+	cpmcp -f ibmpc-514ss cpmtest.img tests/soak/* 0:
 	# user 4 for the user-hop tests (test.md). A program run in user 4 must be
 	# in user 4 (or be a user-0 SYS file). menu and mclean are there for the
 	# nested hop, where MENU itself runs in user 4.
 	cpmcp -f ibmpc-514ss cpmtest.img hello.cmd 4:
 	cpmcp -f ibmpc-514ss cpmtest.img menu.cmd 4:
 	cpmcp -f ibmpc-514ss cpmtest.img mclean.cmd 4:
-	cpmcp -f ibmpc-514ss cpmtest.img soak4/* 4:
+	cpmcp -f ibmpc-514ss cpmtest.img tests/soak4/* 4:
 	cpmls -F -f ibmpc-514ss cpmtest.img 
 
 # --------------------------------------------------------------------
 # Binary zip
 # --------------------------------------------------------------------
 # Programs, the sample menus/jobs they use (HELLO is the demo program the
-# samples launch), and the soak test. -j: flat archive, no soak/ folder.
+# samples launch), and the soak test. -j: flat archive, no tests/soak folder.
 DIST_CMD  = menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd
-DIST_DAT  = menu.dat menu1.dat menu2.dat soak/soak.dat
-DIST_SUB  = batch.sub nest.sub soak/soak.sub soak/soaka.sub soak/soakb.sub soak/soakm.sub
+DIST_DAT  = menu.dat menu1.dat menu2.dat tests/soak/soak.dat
+DIST_SUB  = batch.sub nest.sub tests/soak/soak.sub tests/soak/soaka.sub tests/soak/soakb.sub tests/soak/soakm.sub
 
 dist: msub.zip
 

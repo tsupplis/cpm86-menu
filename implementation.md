@@ -82,9 +82,9 @@ flowchart TD
     V -- "22h" --> SUB["SUB backend: sub_cmddrv + sub_active"]
     V -- ">= 30h and concurrent system type" --> CLI["CLI backend: no CCP access"]
     V -- "otherwise" --> X["report unsupported system; exit"]
-    SUB --> B["parse args: file.dat /n /P"]
+    SUB --> B["parse args: file.dat [nPR]"]
     CLI --> B
-    B --> P{"/P?"}
+    B --> P{"P?"}
     P -- yes --> W["wait for key"]
     P -- no --> L["load_menu; apply selection; draw"]
     W --> L
@@ -142,7 +142,7 @@ flowchart TD
     S0{"S / SP / S! ?"} -- yes --> RS["sub_load<br/>read + expand"]
     RS -- error --> ER["menu_error<br/>stay in menu"]
     RS --> M1
-    S0 -- no --> M1["remenu = E S C<br/>menucmd = [D:]MENU D:dat /n [/P]<br/>home = BDOS 32 get<br/>hop = @n set and n ≠ home"]
+    S0 -- no --> M1["remenu = E S C<br/>menucmd = [D:]MENU D:dat [nP]<br/>home = BDOS 32 get<br/>hop = @n set and n ≠ home"]
     M1 --> C0{"C / C! and not remenu ?"}
     C0 -- yes --> CH["p_chain(cmd)<br/>no MENU record"]
     C0 -- no --> H0{"hop ?"}
@@ -193,9 +193,10 @@ flowchart LR
 **Re-launch record**
 
 ```text
-[D:]MENU  D:file.dat  /n  [/P]
- │         │           │    └ EP/SP/CP only: wait for a key first
- │         │           └ entry to select on return
+[D:]MENU  D:file.dat  [nP]
+ │         │            ││└ P: EP/SP/CP only, wait for a key first
+ │         │            │└ n: entry to select on return
+ │         │            └ closing ] optional on input
  │         └ current drive added when missing (BDOS 25)
  └ drive MENU was started from (CCP CMBUFF)
 ```

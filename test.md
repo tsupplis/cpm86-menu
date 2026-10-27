@@ -100,7 +100,7 @@ B>ERA $$$.SUB
 
 emu2 has no user areas and no CCP loop, so it can only check the `.dat` parsing
 and the `MSUB` check mode. Run these from the project directory unless the
-*Action* says `cd soak`.
+*Action* says `cd tests/soak`.
 
 ### M1 — menu.dat is valid
 
@@ -116,13 +116,13 @@ and the `MSUB` check mode. Run these from the project directory unless the
 
 ### M3 — hop.dat is valid
 
-- **Action:** `cd soak`, then `emu2 ../mcheck.cmd hop.dat`
+- **Action:** `cd tests/soak`, then `emu2 ../../mcheck.cmd hop.dat`
 - **Why:** the `@n` suffixes used by the hop tests must parse.
 - **Expected:** last line `INF: 12 entries, 0 warnings, 0 errors`.
 
 ### M4 — bad @n suffixes are rejected
 
-- **Action:** in `soak`, `emu2 ../mcheck.cmd bad.dat`
+- **Action:** in `tests/soak`, `emu2 ../../mcheck.cmd bad.dat`
 - **Why:** malformed suffixes must be reported, not run.
 - **Expected:** 3 entries accepted (`E@4 good`, `E label@4`, `E!@15 good`) and 11 `ERR:` lines, one each for `@16`, bare `@`, `@x`, `@4A`, `@123`, `C@4`, `CP@4`, `C!@4`, `M@4`, `EP@`, and `@4` with no type. Exit code 1 (`echo $?`).
 
@@ -134,13 +134,13 @@ and the `MSUB` check mode. Run these from the project directory unless the
 
 ### M6 — size limits
 
-- **Action:** in `soak`, `emu2 ../mcheck.cmd limits.dat`
+- **Action:** in `tests/soak`, `emu2 ../../mcheck.cmd limits.dat`
 - **Why:** `limits.dat` holds a 71-character label, a 126-character command and 16 entries in all; the limits are 70, 125 and 15.
 - **Expected:** `WRN: line 2: label longer than 70 characters, cut`; `ERR: line 3: command longer than 125 characters`; `ERR: line 18: too many entries (maximum 15), entry ignored`; last line `INF: 15 entries, 1 warnings, 2 errors`.
 
 ### S1 — MSUB check mode
 
-- **Action:** in `soak`, `EMU2_CPM_VER=2.2 emu2 ../msub.cmd /N soak`
+- **Action:** in `tests/soak`, `EMU2_CPM_VER=2.2 emu2 ../../msub.cmd /N soak`
 - **Why:** `/N` checks `SOAK.SUB` without writing anything.
 - **Expected:** lines 2 to 13 are listed, then `WARNING: CCP not recognised` (normal on emu2), then `OK: 12 commands = 12 of 128 records. Nothing written.`
 
@@ -289,13 +289,13 @@ unless the test says otherwise. The status bar shows `U0` again at that point.
 
 - **Action:** `MENU HOP.DAT`. Select entry 1.
 - **Why:** a basic hop: the command runs in user 4, then everything comes back to user 0.
-- **Expected:** `USER 4`; `DIR U4MARK.*` listing `U4MARK TXT`; `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT /1`. Then the menu, entry 1 highlighted, status `U0`.
+- **Expected:** `USER 4`; `DIR U4MARK.*` listing `U4MARK TXT`; `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT [1]`. Then the menu, entry 1 highlighted, status `U0`.
 
 ### H2 — entry 2, hop with a pause
 
 - **Action:** `MENU HOP.DAT`. Select entry 2. Press a key at the pause.
 - **Why:** type `EP@4` is H1 plus the pause.
-- **Expected:** the same lines as H1 (the last one is `MENU B:HOP.DAT /2 /P`). `Press any key to return to the menu`, and after the key the menu with entry 2 highlighted.
+- **Expected:** the same lines as H1 (the last one is `MENU B:HOP.DAT [2P]`). `Press any key to return to the menu`, and after the key the menu with entry 2 highlighted.
 
 ### H3 — entry 3, hop and leave
 
@@ -307,7 +307,7 @@ unless the test says otherwise. The status bar shows `U0` again at that point.
 
 - **Action:** `MENU HOP.DAT`. Select entry 4.
 - **Why:** every line of `HOPS.SUB` must run in user 4.
-- **Expected:** `USER 4`; `DIR U4MARK.*` listing `U4MARK TXT`; `DIR U0MARK.*` answering `NO FILE` (that file is only in user 0); `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT /4`. Menu back on entry 4.
+- **Expected:** `USER 4`; `DIR U4MARK.*` listing `U4MARK TXT`; `DIR U0MARK.*` answering `NO FILE` (that file is only in user 0); `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT [4]`. Menu back on entry 4.
 
 ### H5 — entry 5, S file with a pause
 
@@ -325,25 +325,25 @@ unless the test says otherwise. The status bar shows `U0` again at that point.
 
 - **Action:** `MENU HOP.DAT`. Select entry 7. Press a key at `HELLO`.
 - **Why:** an interactive program also works after the hop (`HELLO.CMD` is copied into user 4 for this; F1 covers a program that is missing there).
-- **Expected:** `USER 4`; `HELLO` runs and waits; after the key `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT /7`. Menu back on entry 7.
+- **Expected:** `USER 4`; `HELLO` runs and waits; after the key `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT [7]`. Menu back on entry 7.
 
 ### H8 — entry 9, `@0` while already in user 0
 
 - **Action:** `MENU HOP.DAT`. Select entry 9.
 - **Why:** a suffix equal to the current user is ignored: no hop.
-- **Expected:** `DIR U0MARK.*` listing `U0MARK TXT`; then `MENU B:HOP.DAT /9`. **No** `USER` line and **no** `MCLEAN` line. Menu back on entry 9.
+- **Expected:** `DIR U0MARK.*` listing `U0MARK TXT`; then `MENU B:HOP.DAT [9]`. **No** `USER` line and **no** `MCLEAN` line. Menu back on entry 9.
 
 ### H9 — entry 10, user 15
 
 - **Action:** `MENU HOP.DAT`. Select entry 10.
 - **Why:** the highest user number works.
-- **Expected:** `USER 15`; `DIR` answering `NO FILE`; `USER 0`; `MCLEAN 15`; `MENU B:HOP.DAT /10`. Menu back on entry 10.
+- **Expected:** `USER 15`; `DIR` answering `NO FILE`; `USER 0`; `MCLEAN 15`; `MENU B:HOP.DAT [10]`. Menu back on entry 10.
 
 ### H10 — entry 12, plain entry
 
 - **Action:** `MENU HOP.DAT`. Select entry 12.
 - **Why:** an entry without `@n` must be unchanged by the new code.
-- **Expected:** `DIR U0MARK.*` listing `U0MARK TXT`; `MENU B:HOP.DAT /12`. No `USER` or `MCLEAN` line.
+- **Expected:** `DIR U0MARK.*` listing `U0MARK TXT`; `MENU B:HOP.DAT [12]`. No `USER` or `MCLEAN` line.
 
 ### L1 — no leftover $$$.SUB files
 
@@ -373,25 +373,25 @@ Tests N1 to N6 are one sequence: do them in order, without resetting in between.
 
 - **Action:** select entry 1.
 - **Why:** an ordinary entry of a menu running in user 4.
-- **Expected:** `DIR U4MARK.*` listing `U4MARK TXT`; `MENU B:HOP4.DAT /1`; the user-4 menu is back on entry 1, status `U4`.
+- **Expected:** `DIR U4MARK.*` listing `U4MARK TXT`; `MENU B:HOP4.DAT [1]`; the user-4 menu is back on entry 1, status `U4`.
 
 ### N3 — `@4` inside user 4
 
 - **Action:** select entry 2.
 - **Why:** the home user is 4, so `@4` is "same user": no hop.
-- **Expected:** `DIR U4MARK.*`; `MENU B:HOP4.DAT /2`. **No** `USER` or `MCLEAN` line. Menu back on entry 2.
+- **Expected:** `DIR U4MARK.*`; `MENU B:HOP4.DAT [2]`. **No** `USER` or `MCLEAN` line. Menu back on entry 2.
 
 ### N4 — a hop from user 4 to user 0
 
 - **Action:** select entry 3.
 - **Why:** a second hop while the first one is still open. `MCLEAN 0` must not delete the command file of user 0, because it still holds the records of the first hop.
-- **Expected:** `USER 0`; `DIR U0MARK.*` listing `U0MARK TXT`; `USER 4`; `MCLEAN 0`; `MENU B:HOP4.DAT /3`. The user-4 menu is back on entry 3, status `U4`.
+- **Expected:** `USER 0`; `DIR U0MARK.*` listing `U0MARK TXT`; `USER 4`; `MCLEAN 0`; `MENU B:HOP4.DAT [3]`. The user-4 menu is back on entry 3, status `U4`.
 
 ### N5 — leave the user-4 menu
 
 - **Action:** press `Q`.
 - **Why:** the records of the first hop (still in user 0) must run now.
-- **Expected:** `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT /8`. The main hop menu is back on entry 8, status `U0`.
+- **Expected:** `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT [8]`. The main hop menu is back on entry 8, status `U0`.
 
 ### N6 — nothing left over
 
@@ -421,13 +421,13 @@ Tests N1 to N6 are one sequence: do them in order, without resetting in between.
 
 - **Action:** `MENU HOP.DAT`. Select entry 11.
 - **Why:** the command queue must survive a failed command.
-- **Expected:** `USER 4`; `NOSUCH?`; `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT /11`; menu back on entry 11. **If the queue stops early,** write down the last line you saw and the user in the status bar.
+- **Expected:** `USER 4`; `NOSUCH?`; `USER 0`; `MCLEAN 4`; `MENU B:HOP.DAT [11]`; menu back on entry 11. **If the queue stops early,** write down the last line you saw and the user in the status bar.
 
 ### F2 — MCLEAN.CMD missing
 
 - **Action:** type `REN MCLEAN.OLD=MCLEAN.CMD`. Then `MENU HOP.DAT`, select entry 1, press `Q`. Then `USER 4`, `DIR $$$.SUB`. Clean up: `ERA $$$.SUB`, `USER 0`, `REN MCLEAN.CMD=MCLEAN.OLD`.
 - **Why:** if the cleanup tool cannot run, the rest of the queue must still go on.
-- **Expected:** the echoed lines of H1, but `MCLEAN 4` answers `MCLEAN?`; `MENU B:HOP.DAT /1` still runs and the menu returns. `DIR $$$.SUB` in user 4 **lists** the empty file (this is the known limit).
+- **Expected:** the echoed lines of H1, but `MCLEAN 4` answers `MCLEAN?`; `MENU B:HOP.DAT [1]` still runs and the menu returns. `DIR $$$.SUB` in user 4 **lists** the empty file (this is the known limit).
 
 ### F3 — too many records
 

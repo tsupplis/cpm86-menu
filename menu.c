@@ -299,6 +299,7 @@ int main(int argc, char **argv)
     char datfile[65];
     int  startsel;      /* /n: entry to select on the first load, 0 = none */
     int  pause;         /* /P: wait for a key before drawing */
+    int  reset;         /* /R: delete $$$.SUB before starting */
     menu_exec_t exec;
     char *error;
     int result;
@@ -312,26 +313,32 @@ int main(int argc, char **argv)
 
     menu_keys_init(exec.mode == MEXEC_CLI);
 
-    /* MENU [datfile] [/n] [/P] */
+    /* MENU [datfile] [[nPR]]: n = start entry, P = pause, R = reset */
     datfile[0]='m'; datfile[1]='e'; datfile[2]='n';
     datfile[3]='u'; datfile[4]='.'; datfile[5]='d';
     datfile[6]='a'; datfile[7]='t'; datfile[8]='\0';
     startsel = 0;
     pause    = 0;
+    reset    = 0;
     {
         int a;
         int i;
         char *p;
         for (a = 1; a < argc; a++) {
             p = argv[a];
-            if (p[0] == '/') {
-                if (p[1] == 'P' || p[1] == 'p') {
-                    pause = 1;
-                } else if (p[1] >= '0' && p[1] <= '9') {
-                    startsel = 0;
-                    for (i = 1; p[i] >= '0' && p[i] <= '9'; i++)
+            if (p[0] == '[') {
+                /* CP/M options: [nPR] or [nPR, the ] is optional */
+                for (i = 1; p[i] != '\0' && p[i] != ']'; i++) {
+                    if (p[i] == 'P' || p[i] == 'p') {
+                        pause = 1;
+                    } else if (p[i] == 'R' || p[i] == 'r') {
+                        reset = 1;
+                    } else if (p[i] >= '0' && p[i] <= '9') {
+                        if (i == 1 || p[i-1] < '0' || p[i-1] > '9')
+                            startsel = 0;
                         if (startsel < 1000)    /* no int wrap-around */
                             startsel = startsel * 10 + (p[i] - '0');
+                    }
                 }
             } else {
                 for (i = 0; p[i] != '\0' && i < 64; i++)
@@ -339,6 +346,13 @@ int main(int argc, char **argv)
                 datfile[i] = '\0';
             }
         }
+    }
+
+    /* /R: drop whatever $$$.SUB is there (current user), even the rest of
+       an outer job, and start as from the keyboard */
+    if (reset && exec.mode == MEXEC_SUB) {
+        sub_delete();
+        exec.subact = 0;
     }
 
     if (pause) {
@@ -356,7 +370,7 @@ reload:
         wrapline(WRAPLINE_ON);      /* may come from B after a draw */
         cursor(CURSOR_ON);
         screen_puts("\r\nNo entries found in: "); screen_puts(datfile); screen_puts("\r\n");
-        screen_puts("Usage: MENU [datafile.dat] [/n] [/P]\r\n");
+        screen_puts("Usage: MENU [datafile.dat] [[nPR]]\r\n");
         return 1;
     }
 
