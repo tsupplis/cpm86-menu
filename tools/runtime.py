@@ -43,7 +43,10 @@ with tempfile.TemporaryDirectory(prefix="menu-runtime-") as folder:
     for dat in ("menu.dat", "menu1.dat", "menu2.dat"):
         output = run("mcheck", dat)
         assert "0 warnings, 0 errors" in output, output
-    output = run("msub", "/N", "batch")
+    output = run("msub", "[N]", "batch")
     assert "Nothing written" in output, output
     assert not stack.exists()
-    print("PASS: built menu parsers and MSUB dry run")
+    output = run("msub", "[n", "batch")
+    assert "Nothing written" in output, output
+    assert not stack.exists()
+    print("PASS: built menu parsers and MSUB dry run ([N] and [n)")

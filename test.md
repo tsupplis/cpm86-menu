@@ -13,7 +13,7 @@ It also requires the existing terminal-output hash and console-call budget.
 `make test-runtime` builds all CMDs and runs emu2 smoke tests in a disposable
 directory: MSUB and MCLEAN reject non-2.2 versions without touching an empty
 stack; MCLEAN still deletes an empty stack on 2.2; sample menu parsing and MSUB
-`/N` still work. emu2 does not verify real concurrent scheduling.
+`[N]` still work. emu2 does not verify real concurrent scheduling.
 
 ## Concurrent system validation
 
@@ -140,8 +140,8 @@ and the `MSUB` check mode. Run these from the project directory unless the
 
 ### S1 — MSUB check mode
 
-- **Action:** in `tests/soak`, `EMU2_CPM_VER=2.2 emu2 ../../msub.cmd /N soak`
-- **Why:** `/N` checks `SOAK.SUB` without writing anything.
+- **Action:** in `tests/soak`, `EMU2_CPM_VER=2.2 emu2 ../../msub.cmd [N] soak`
+- **Why:** `[N]` checks `SOAK.SUB` without writing anything.
 - **Expected:** lines 2 to 13 are listed, then `WARNING: CCP not recognised` (normal on emu2), then `OK: 12 commands = 12 of 128 records. Nothing written.`
 
 ## 3. Regression on pce: menu entries without a hop

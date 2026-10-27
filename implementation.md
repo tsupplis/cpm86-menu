@@ -63,7 +63,7 @@ segment, a 32-byte stack inside the image).
 | `menuexec.c` / `menuexec.h` | `menu_exec_init`, `menu_exec_prepare`, `menu_exec_run`, `menu_exec_quit`; dispatch and execution context |
 | `menusub.c` | `build_menucmd`, `numrec`, `menusub_prepare`, `menusub_run`; unchanged legacy stack/rollback and handover |
 | `menuexe.c` | `menuexe_prepare`, `menuexe_run`; native SUBMIT prefix for S only, length checks, user/drive/priority restoration, console recovery |
-| `msub.c` | `main`: banner, usage, `/N` check, `sub_load` → push → `sub_exit` |
+| `msub.c` | `main`: banner, usage, `[N]` check, `sub_load` → push → `sub_exit` |
 | `menudat.c` | `load_menu` → `items[]`, `menu_title`, `menu_back`, `menu_quit_disabled`, `menu_has_snr`; uses `sub_readln`; parses the `@n` suffix |
 | `mcheck.c` | `main`: `load_menu` with the `menu_diag` hook, prints `INF:` / `WRN:` / `ERR:` |
 | `mclean.a86` | `MCLEAN n`: user n, open `$$$.SUB`, delete if 0 records, restore the user |

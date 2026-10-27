@@ -113,12 +113,12 @@ disk.
 ### MSUB
 
 ```
-MSUB [/N] file[.SUB] [parm1 parm2 ...]
+MSUB [N] file[.SUB] [parm1 parm2 ...]
 ```
 
 | Argument | Meaning |
 |---|---|
-| `/N` | Check only (see below): expand and validate the file, write nothing. |
+| `[N` or `[N]` | Check only (see below): expand and validate the file, write nothing. The closing `]` is optional, as for `MENU` and `MCLEAN`. Only as the first argument. |
 | `file` | Job file, drive prefix allowed (`B:BACKUP`). `.SUB` is added when no type is given. |
 | `parm1` … `parm9` | Replace `$1` … `$9` in the file. Missing parameters expand to nothing. Each is used up to 32 characters. |
 
@@ -352,8 +352,8 @@ B>MSUB
 
 MSUB SUB ORCHESTRATOR VER 1.0
 
-USAGE: MSUB [/N] file[.SUB] [parm1 parm2 ...]
-  /N  check only: expand and validate the file, write nothing
+USAGE: MSUB [N] file[.SUB] [parm1 parm2 ...]
+  [N]  check only: expand and validate the file, write nothing
 ```
 
 | | DR `SUBMIT` | `MSUB` |
@@ -363,13 +363,13 @@ USAGE: MSUB [/N] file[.SUB] [parm1 parm2 ...]
 | Errors | `Error On Line n` | `ERROR: <reason> FILE.SUB, line n`. Nothing is written. |
 | Limits | 125 chars per line | 125 chars per line, 64 lines, 128 records in `$$$.sub` |
 
-### MSUB /N (check only)
+### MSUB [N] (check only)
 
-`MSUB /N job p1 p2` runs the same load as a real run and reports, without
+`MSUB [N] job p1 p2` runs the same load as a real run and reports, without
 writing `$$$.sub` or starting the CCP:
 
 ```
-B>MSUB /N JOB A B
+B>MSUB [N] JOB A B
 
 MSUB SUB ORCHESTRATOR VER 1.0
 

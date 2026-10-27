@@ -2,11 +2,11 @@
  * msub.c -- MSUB, a SUBMIT replacement built on util.lib.
  * Licensed under the MIT license. See LICENSE file in the project root.
  *
- * MSUB [/N] file[.SUB] [parm1 parm2 ...]
+ * MSUB [N] file[.SUB] [parm1 parm2 ...]
  *
- * /N: check only. Runs the same load and checks, lists the expanded
- * commands and reports what a real run would push, but writes nothing and
- * does not start the CCP.
+ * [N]: check only (the ] is optional). Runs the same load and checks,
+ * lists the expanded commands and reports what a real run would push, but
+ * writes nothing and does not start the CCP.
  *
  * Same .sub reader as MENU (sub_load). Unlike DR SUBMIT, when MSUB is run
  * from inside a running $$$.SUB job it pushes the new commands on top of
@@ -55,7 +55,7 @@ static int changes_drive_user(char *s)
     return 0;
 }
 
-/* /N: report only */
+/* [N]: report only */
 static int check(int n)
 {
     int i;
@@ -136,18 +136,20 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    /* /N as first argument: check only */
+    /* [N] as first argument: check only. [N and [n] also accepted */
     checkonly = 0;
     first = 1;
-    if (argc > 1 && argv[1][0] == '/' &&
-        (argv[1][1] == 'N' || argv[1][1] == 'n') && argv[1][2] == '\0') {
+    if (argc > 1 && argv[1][0] == '[' &&
+        (argv[1][1] == 'N' || argv[1][1] == 'n') &&
+        (argv[1][2] == '\0' ||
+         (argv[1][2] == ']' && argv[1][3] == '\0'))) {
         checkonly = 1;
         first = 2;
     }
 
     if (argc <= first) {
-        cputs("USAGE: MSUB [/N] file[.SUB] [parm1 parm2 ...]\r\n"
-              "  /N  check only: expand and validate the file, write nothing\r\n");
+        cputs("USAGE: MSUB [N] file[.SUB] [parm1 parm2 ...]\r\n"
+              "  [N]  check only: expand and validate the file, write nothing\r\n");
         return 0;
     }
 
