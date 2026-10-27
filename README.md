@@ -73,7 +73,7 @@ the **CP/M-86 1.1 backend**. The table above describes their concurrent equivale
 ### MENU
 
 ```
-MENU [file.dat] [[nPR]]
+MENU [file.dat] [[nPRV]]
 ```
 
 | Argument | Meaning |
@@ -81,11 +81,34 @@ MENU [file.dat] [[nPR]]
 | `file.dat` | Menu file to load (default `menu.dat`), drive prefix allowed. |
 | `[n` | Start with entry `n` (1-based) selected. Ignored (entry 1 is selected) if `n` is 0 or beyond the number of entries, e.g. after the `.dat` was edited. |
 | `[P` | Show "Press any key to return to the menu" and wait before drawing. |
-| `[R` | Reset: delete `$$$.sub` (current drive and user) before starting, and run as if started from the keyboard. The rest of an enclosing SUBMIT job is lost. Not needed after a plain boot (see [Nesting](#nesting-menu-inside-a-submit-job)); useful to clear a stale file left by an aborted job. CP/M-86 1.1 only. |
+| `[V` | With `R`: list, for each user area, the records found in `$$$.sub` and whether it was deleted, show the submit flag, and wait for a key. For diagnosis (`MENU [RV]`). |
+| `[R` | Reset: delete `$$$.sub` in every user area 0-15 of the current drive before starting, and run as if started from the keyboard. The rest of an enclosing SUBMIT job is lost. Clears a stale `$$$.sub` once `MENU` runs; it cannot help against the one run at cold boot (see [After a reboot](#after-a-reboot)). CP/M-86 1.1 only. |
 
 Options go in one bracket group, CP/M style, and the closing `]` is optional: `[3]`, `[2P]`, `[R]`, `[3PR` are all valid. `[R]` is typed by hand; `menu.cmd` never writes it. `[n` and `[P` are mostly written by `menu.cmd` itself in the re-launch line,
 so the menu comes back on the entry that was run and, for `EP`/`SP`/`CP`
 entries, after a key press.
+
+### After a reboot
+
+While an entry runs, `$$$.sub` still holds the job that brings the menu back
+(`MENU file.dat [n]`). If the machine is reset during the program, that file
+survives, and the next cold boot runs it **before anything else**:
+
+- The BDOS sets the CCP submit flag at cold boot when it finds a `$` file in
+  the boot drive and user.
+- The CCP reads `$$$.sub` before the keyboard. The boot command of `SETUP`
+  reaches the CCP as type-ahead (the BIOS copies it into its key buffer), so it
+  waits, unread, while the stale `MENU file.dat [n]` runs.
+- That `MENU` then reads the waiting boot command as key presses (`B` goes
+  back, Enter picks an entry, ...). This is how a menu, then a sub-menu, appear
+  with no key pressed, and why the boot command never runs.
+
+Nothing that runs after the boot can prevent this, so `MENU [R]` and
+`MCLEAN n [F]` in `AUTOEXEC.SUB` come too late. Fix it in the system: make the
+cold start of the CCP ignore a left-over `$$$.sub` (clear the submit flag in
+`CCPCLD`), or delete `$$$.sub` from the boot sector's startup path. Until then
+leave the menu with `Q` before resetting, or erase `$$$.SUB` from another boot
+disk.
 
 ### MSUB
 

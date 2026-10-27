@@ -290,6 +290,51 @@ static void menu_error(char *msg, char *arg, int sel, int has_back)
 
 /* ------------------------------------------------------------------ */
 
+static void put_num(int n)
+{
+    char b[8];
+    int i;
+
+    i = 7;
+    b[i] = '\0';
+    do {
+        b[--i] = (char)('0' + n % 10);
+        n /= 10;
+    } while (n > 0);
+    screen_puts(b + i);
+}
+
+/* BDOS 19 on "$$$     SUB" (current drive) in each user area 0-15;
+   verbose [V]: report records found and the delete result for each user */
+static void reset_stacks(int verbose)
+{
+    static char fcb[36];
+    int home;
+    int user;
+    int i;
+    int recs;
+    int rc;
+
+    home = bdos(32, 0xFF) & 0xFF;
+    for (user = 0; user < 16; user++) {
+        for (i = 0; i < 36; i++)
+            fcb[i] = 0;
+        for (i = 1; i <= 11; i++)
+            fcb[i] = ' ';
+        fcb[1] = fcb[2] = fcb[3] = '$';
+        fcb[9] = 'S'; fcb[10] = 'U'; fcb[11] = 'B';
+        bdos(32, user);
+        recs = sub_records();
+        rc = bdos(19, fcb) & 0xFF;
+        if (verbose && (recs > 0 || rc != 0xFF)) {
+            screen_puts("\r\nuser "); put_num(user);
+            screen_puts(": $$$.SUB records="); put_num(recs);
+            screen_puts(rc == 0xFF ? " not found" : " deleted");
+        }
+    }
+    bdos(32, home);
+}
+
 int main(int argc, char **argv)
 {
     int  sel;
@@ -299,7 +344,7 @@ int main(int argc, char **argv)
     char datfile[65];
     int  startsel;      /* /n: entry to select on the first load, 0 = none */
     int  pause;         /* /P: wait for a key before drawing */
-    int  reset;         /* /R: delete $$$.SUB before starting */
+    int  reset;         /* [R]: delete $$$.SUB before starting, 2 = verbose [RV] */
     menu_exec_t exec;
     char *error;
     int result;
@@ -332,7 +377,9 @@ int main(int argc, char **argv)
                     if (p[i] == 'P' || p[i] == 'p') {
                         pause = 1;
                     } else if (p[i] == 'R' || p[i] == 'r') {
-                        reset = 1;
+                        if (!reset) reset = 1;
+                    } else if (p[i] == 'V' || p[i] == 'v') {
+                        reset = 2;
                     } else if (p[i] >= '0' && p[i] <= '9') {
                         if (i == 1 || p[i-1] < '0' || p[i-1] > '9')
                             startsel = 0;
@@ -348,11 +395,19 @@ int main(int argc, char **argv)
         }
     }
 
-    /* /R: drop whatever $$$.SUB is there (current user), even the rest of
-       an outer job, and start as from the keyboard */
+    /* [R]: drop $$$.SUB in every user area (0-15) of the current drive,
+       even the rest of an outer job, and start as from the keyboard */
     if (reset && exec.mode == MEXEC_SUB) {
-        sub_delete();
+        if (reset == 2) {
+            screen_puts("\r\nMENU reset: submit flag=");
+            put_num(exec.subact < 0 ? 9 : exec.subact);
+        }
+        reset_stacks(reset == 2);
         exec.subact = 0;
+        if (reset == 2) {
+            screen_puts("\r\nPress any key...");
+            getch();
+        }
     }
 
     if (pause) {
@@ -370,7 +425,7 @@ reload:
         wrapline(WRAPLINE_ON);      /* may come from B after a draw */
         cursor(CURSOR_ON);
         screen_puts("\r\nNo entries found in: "); screen_puts(datfile); screen_puts("\r\n");
-        screen_puts("Usage: MENU [datafile.dat] [[nPR]]\r\n");
+        screen_puts("Usage: MENU [datafile.dat] [[nPRV]]\r\n");
         return 1;
     }
 
