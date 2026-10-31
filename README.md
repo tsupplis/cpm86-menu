@@ -3,7 +3,7 @@
 A lean interactive launch menu with automatic selection of its execution backend.
 On CP/M-86 1.1 (BDOS 2.2), the existing CCP `$$$.SUB` stack runs actions and
 restarts MENU. On a concurrent system with BDOS >= 3.0, MENU stays resident,
-runs actions with `p_cli`, and resumes the same menu and selection. Concurrent
+runs actions with `p_spawn` on Concurrent BDOS 31h through 41h and `p_cli` on other supported concurrent versions, and resumes the same menu and selection. Concurrent
 MENU never reads, writes or deletes `$$$.SUB`, and never queues a MENU restart.
 Other systems are rejected.
 
@@ -19,8 +19,8 @@ The `.dat` format and navigation keys are shared by both backends:
 | Entry | Concurrent behaviour |
 |---|---|
 | `M`, `M!` | Navigate between menus in-process as before. |
-| `E`, `EP` | Pass the configured command directly to `p_cli`. |
-| `S`, `SP` | Pass `SUBMIT file parameters` to `p_cli`; native SUBMIT must be available. |
+| `E`, `EP` | Pass the configured command to the concurrent launcher. |
+| `S`, `SP` | Pass `SUBMIT file parameters` to the concurrent launcher; native SUBMIT must be available. |
 | `C`, `CP` | Execute exactly like `E`, `EP`; no chaining. |
 | `E!`, `S!`, `C!` | Run the action, reclaim the console, restore context, then exit MENU. |
 | `Q` | Exit MENU (unless disabled by `Q!`); an enclosing job can continue. |
@@ -50,7 +50,7 @@ the script from the selected user's context; on CP/M the script is read from
 MENU's original user and its expanded commands run in user n. The existing
 restriction of `@n` to E and S variants is unchanged.
 
-`p_cli` launch failure is checked; an executed program's exit code is not
+Concurrent launch failure is checked; an executed program's exit code is not
 interpreted. Console reattachment follows the foreground action's console
 lifecycle, not a general wait for arbitrary detached background work.
 
@@ -484,3 +484,8 @@ make clean    # removes all generated files
 
 The whole repository is under MIT [License](LICENSE.md) unless specified otherwise in a subdirectory.
 
+
+On Concurrent BDOS 31h through 41h inclusive, the local util.lib supplies
+`p_spawn`. It resolves external CMD, COM, EXE and BAT files and waits for
+console recovery. Without a PC-MODE ancestor it uses native P_CLI. Menu
+restores its selected user and drive after the call.

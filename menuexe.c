@@ -45,10 +45,17 @@ int menuexe_run(menu_exec_t *ctx, menu_item_t *item)
 
     /* Establish priority before launch: a nested SUBMIT derives its own
        priority from ours. Do no console I/O until C_ATTACH has returned. */
-    p_priority(ctx->wait_priority);
-    rc = p_cli(ctx->command);
-    if (rc == 0) conattach();
-    p_priority(ctx->priority);
+    {
+        int version = bdos(12, 0) & 0xff;
+        if (version >= 0x31 && version <= 0x41) {
+            rc = p_spawn(ctx->command);
+        } else {
+            p_priority(ctx->wait_priority);
+            rc = p_cli(ctx->command);
+            if (rc == 0) conattach();
+            p_priority(ctx->priority);
+        }
+    }
 
     /* USER and $GLOBAL in native SUBMIT can change the parent's context.
        Restore even when there was no @n, or the launch failed. */

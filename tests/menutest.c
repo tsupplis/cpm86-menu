@@ -53,6 +53,19 @@ static int event_count, navigation, missing_menu;
 static void keyboard_tests(void);
 static void require(int ok, char *message);
 static void concurrent_tests(void);
+int p_spawn(char *s)
+{
+    int saved = priority;
+    int wait = parent_priority - 1;
+    int rc;
+    require(version >= 0x31 && version <= 0x41, "spawn version range");
+    p_priority(wait < 197 ? wait : 197);
+    rc = p_cli(s);
+    if (!rc) conattach();
+    p_priority(saved);
+    return rc;
+}
+
 static void legacy_success_tests(void);
 static void event(char c) { events[event_count++] = c; events[event_count] = 0; }
 static void legacy_only(void) { require(version == 0x22, "concurrent never accesses CCP submit state"); }
