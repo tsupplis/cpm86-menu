@@ -6,7 +6,7 @@ ASM86  = cpm86_asm86
 GENCMD = cpm86_gencmd
 
 # Flags common to both CP/M-86 builds
-CFLAGS = -I.
+CFLAGS = -I. -squeeze
 
 # --------------------------------------------------------------------
 # Top-level targets
