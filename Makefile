@@ -1,14 +1,12 @@
-CC     = aztec42_cc
+CC     = aztec42_acc
 AS     = aztec42_as
-STRIP  = aztec42_sqz
-LD     = aztec42_link
+LD     = aztec42_acc
 LIB    = aztec42_lib
 ASM86  = cpm86_asm86
 GENCMD = cpm86_gencmd
-LDFLAGS = -lc86
 
 # Flags common to both CP/M-86 builds
-CFLAGS = -I. +F +0
+CFLAGS = -I.
 
 # --------------------------------------------------------------------
 # Top-level targets
@@ -21,19 +19,19 @@ all: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd
 MENU_OBJ = menu.o menudat.o menuexec.o menusub.o menuexe.o menukey.o
 
 menu.cmd: $(MENU_OBJ) util.lib
-	$(LD) -o $@ $(MENU_OBJ) util.lib $(LDFLAGS)
+	$(LD) -o $@ $(MENU_OBJ) util.lib
 
 msub.cmd: msub.o util.lib
-	$(LD) -o $@ msub.o util.lib $(LDFLAGS)
+	$(LD) -o $@ msub.o util.lib
 
 hello.cmd: hello.o util.lib
-	$(LD) -o $@ hello.o util.lib $(LDFLAGS)
+	$(LD) -o $@ hello.o util.lib
 
 # MCHECK: the MENU parser built with -DMCHECK (reports what it skips)
 # util.lib twice: subfile.o (sub_readln) needs sub_append from sub.o, which
 # the one-pass linker has already passed
 mcheck.cmd: mcheck.o menudatk.o util.lib
-	$(LD) -o $@ mcheck.o menudatk.o util.lib util.lib $(LDFLAGS)
+	$(LD) -o $@ mcheck.o menudatk.o util.lib util.lib
 
 menu.o menukey.o: menukey.h
 menukey.o: conio.h
@@ -43,8 +41,7 @@ menuexec.o menusub.o menuexe.o: util.h
 menuexec.o menusub.o: sub.h
 
 menudatk.o: menudat.c menudat.h
-	$(CC) $(CFLAGS) -DMCHECK -o $@ menudat.c
-	$(STRIP) $@
+	$(CC) $(CFLAGS) -DMCHECK -c -o $@ menudat.c
 
 # MCLEAN is assembler, 8080 model (CS = DS = ES = SS)
 mclean.cmd: mclean.h86
@@ -57,12 +54,10 @@ mclean.h86: mclean.a86
 # Compile rules
 # --------------------------------------------------------------------
 %.o: %.c
-	$(CC) $(CFLAGS) -o $@ $<
-	$(STRIP) $@
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 os.o: os.asm
-	$(AS) $<
-	$(STRIP) $@
+	$(CC) -c -o $@ $<
 
 # --------------------------------------------------------------------
 # Test image
