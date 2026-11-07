@@ -438,7 +438,7 @@ jobs to build nested jobs.
 
 ## Build
 
-Requires the `cpm86-crossdev` toolchain (`aztec42_cc`, `aztec42_link`, etc.).
+Requires the `cpm86-crossdev` toolchain (`aztec43_acc`).
 `mclean.cmd` is assembler, built with `cpm86_asm86` and `cpm86_gencmd` in the
 8080 model.
 
