@@ -457,3 +457,22 @@ $$$.SUB`.
 
 For a test that fails: the test ID, the lines you saw (copy the screen), and
 the answers of `DIR $$$.SUB` in user 0 and in the user that was the target.
+
+## Reusable menu library regression
+
+`make test-local` also exercises `menu.lib`'s returned action IDs, independent
+contexts, retained selection, disabled Back/Cancel, bounds and console cleanup.
+The renderer's original `tests/screen.sha` checksum remains unchanged.
+
+Separate PCE validation passed with the actual CP/M-86 1.1 and CCP/M-86 3.1 images:
+
+1. Start `TSTAPMNU`, move to the second choice and press Enter: the application
+   reports value 20 (J on CP/M-86; Down on CCP/M-86).
+2. Press a key to redisplay. Selection remains on the second choice. Move down
+   once and select Finish: the application reports 99 and returns to the CCP.
+3. Start `MENU` and press Q: return to the CCP.
+4. Use a menu with `E! Run hello | HELLO`; select it and dismiss HELLO's pause:
+   return to the CCP on both operating systems.
+
+PCE testing is separate from the local/runtime regression targets. No physical
+hardware validation is implied.

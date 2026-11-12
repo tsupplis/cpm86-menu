@@ -489,3 +489,16 @@ On Concurrent BDOS 31h through 41h inclusive, the local util.lib supplies
 `p_spawn`. It resolves external CMD, COM, EXE and BAT files and waits for
 console recovery. Without a PC-MODE ancestor it uses native P_CLI. Menu
 restores its selected user and drive after the call.
+
+## Reusing the menu in an application
+
+Build `menu.lib` and include `menu.h`. The library displays choices and returns
+the selected application ID; your code performs the action. See [api.md](api.md)
+for the API and ownership rules, and [tstapmnu.c](tstapmnu.c) for a complete example.
+
+```sh
+make menu.lib tstapmnu.cmd
+```
+
+Run `TSTAPMNU` on CP/M-86 or CCP/M-86. Choose an action to see its returned value;
+choose Finish or press Q to exit. `MENU.CMD` uses the same library.

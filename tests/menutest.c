@@ -20,6 +20,7 @@ int bdos(int fn, ...);
 #undef sub_records
 #undef sub_abort
 #undef sub_delete
+#include "../menulib.c"
 #define main menu_main
 #ifndef MENU_SOURCE
 #define MENU_SOURCE "../menu.c"
@@ -55,6 +56,7 @@ static int chained, exited, chainmode, loaded_lines = -1;
 static char launched[128], events[128];
 static int event_count, navigation, missing_menu;
 static void keyboard_tests(void);
+static void library_tests(void);
 static void require(int ok, char *message);
 static void concurrent_tests(void);
 int p_spawn(char *s)
@@ -222,21 +224,31 @@ int main(int argc, char **argv)
 {
     char *args[1];
     FILE *fp;
+    menu_def_t def;
     int i;
     args[0] = "menu";
     setup();
     if (argc > 1) {
         count = 15;
         for (i = 0; i < count; i++) strcpy(items[i].label, "A $ label");
-        draw_screen(0, 1);
+        for (i = 0; i < count; i++) {
+            choices[i].label = items[i].label; choices[i].id = i;
+        }
+        def.title=menu_title; def.entries=choices; def.count=count;
+        def.flags=MENU_ALLOW_CANCEL|MENU_ALLOW_BACK;
+        def.title_color=menu_title_fg; def.item_color=menu_item_fg;
+        require(menu_init(&selector,&def)==0,"renderer context");
+        draw_screen(&selector,0,1);
         printf("initial_console_calls=%d initial_bytes=%d\n", console_calls, used);
-        draw_entry(0, 0); draw_entry(1, 1);
+        draw_entry(&selector,0,0); draw_entry(&selector,1,1);
         fp = fopen(argv[1], "wb");
         require(fp != NULL, "open screen capture");
         fwrite(output, 1, used, fp); fclose(fp);
         printf("console_calls=%d string_calls=%d bytes=%d\n", console_calls, string_calls, used);
         return 0;
     }
+    library_tests();
+    setup();
     require(sub_restore(-1) == -1 && sub_restore(129) == -1,
             "invalid record counts rejected without BDOS calls");
     for (i = 0; i < 3; i++) {
@@ -435,4 +447,40 @@ static void keyboard_tests(void)
     setup(); version = 0x31; navigation = 1; missing_menu = 2; script = "\rb";
     require(menu_main(1, args) == 1 && !raw_keys, "failed Back reload restores active keyboard mode");
     puts("PASS: concurrent arrows, VT52 compatibility, keyboard handover and exit restoration");
+}
+
+static void library_tests(void)
+{
+    static const menu_entry_t entries[] = { {"One $",10}, {"Two",20} };
+    menu_def_t def;
+    menu_t first, second;
+    int v;
+    for (v=0;v<2;v++) {
+        setup(); version=v ? 0x31 : 0x22;
+        def.title="Library test"; def.entries=entries; def.count=2;
+        def.flags=MENU_ALLOW_CANCEL|MENU_ALLOW_BACK;
+        def.title_color=14; def.item_color=14;
+        require(menu_init(&first,&def)==0 && menu_init(&second,&def)==0,"independent contexts initialized");
+        require(menu_select(&first,2)==MENU_ERROR,"selection bounds");
+        script="kjjj\r";scriptpos=0;
+        require(menu_choose(&first)==20,"application id and navigation bounds");
+        require(!raw_keys && contains("\033e") && contains("\033v"),"console released after selection");
+        script="\r";scriptpos=0;
+        require(menu_choose(&second)==10,"second context independent");
+        script="\r";scriptpos=0;
+        require(menu_choose(&first)==20,"selection persists");
+        script="b";scriptpos=0;require(menu_choose(&first)==MENU_BACK,"back value");
+        script="q";scriptpos=0;require(menu_choose(&first)==MENU_CANCEL,"cancel value");
+        require(launches==0 && chained==0 && exited==0,"library never executes commands");
+        menu_close(&first);menu_close(&first);menu_close(NULL);
+        require(menu_choose(&first)==MENU_ERROR,"closed handle rejected");
+        def.flags=0;require(menu_init(&first,&def)==0,"flags disabled");
+        script="qb\r";scriptpos=0;require(menu_choose(&first)==10,"disabled back and cancel ignored");
+        def.count=0;require(menu_init(&first,&def)==MENU_ERROR,"empty menu rejected");
+        require(menu_choose(&first)==MENU_ERROR,"failed initialization closes context");
+        def.count=16;require(menu_init(&first,&def)==MENU_ERROR,"entry limit");
+        def.count=2;def.title_color=16;require(menu_init(&first,&def)==MENU_ERROR,"color bounds");
+        require(menu_init(NULL,&def)==MENU_ERROR,"null context");
+    }
+    puts("PASS: library values, contexts, retained selection, flags, bounds and console release");
 }

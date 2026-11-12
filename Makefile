@@ -1,4 +1,5 @@
 CC     = aztec43_acc
+AR     = aztec43_lib
 LD     = aztec43_acc
 ASM86  = cpm86_asm86
 GENCMD = cpm86_gencmd
@@ -9,15 +10,15 @@ CFLAGS = -I. -squeeze
 # --------------------------------------------------------------------
 # Top-level targets
 # --------------------------------------------------------------------
-all: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd
+all: menu.lib tstapmnu.cmd menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd
 
 # --------------------------------------------------------------------
 # Link targets
 # --------------------------------------------------------------------
-MENU_OBJ = menu.o menudat.o menuexec.o menusub.o menuexe.o menukey.o
+MENU_OBJ = menu.o menudat.o menuexec.o menusub.o menuexe.o
 
-menu.cmd: $(MENU_OBJ) subretry.o util.lib
-	$(LD) -o $@ $(MENU_OBJ) subretry.o util.lib
+menu.cmd: $(MENU_OBJ) subretry.o menu.lib util.lib
+	$(LD) -o $@ $(MENU_OBJ) subretry.o menu.lib util.lib
 
 msub.cmd: msub.o subretry.o util.lib
 	$(LD) -o $@ msub.o subretry.o util.lib
@@ -60,8 +61,9 @@ os.o: os.asm
 # --------------------------------------------------------------------
 # Test image
 # --------------------------------------------------------------------
-cpmtest.img: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub tests/soak/* tests/soak4/*
+cpmtest.img: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd tstapmnu.cmd menu.dat menu1.dat menu2.dat batch.sub nest.sub tests/soak/* tests/soak4/*
 	cp cpmbase.img cpmtest.img
+	cpmcp -f ibmpc-514ss cpmtest.img tstapmnu.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img menu.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img msub.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img hello.cmd 0:
@@ -85,21 +87,21 @@ cpmtest.img: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd menu.dat menu1.da
 # --------------------------------------------------------------------
 # Programs, the sample menus/jobs they use (HELLO is the demo program the
 # samples launch), and the soak test. -j: flat archive, no tests/soak folder.
-DIST_CMD  = menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd
+DIST_CMD  = menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd tstapmnu.cmd
 DIST_DAT  = menu.dat menu1.dat menu2.dat tests/soak/soak.dat
 DIST_SUB  = batch.sub nest.sub tests/soak/soak.sub tests/soak/soaka.sub tests/soak/soakb.sub tests/soak/soakm.sub
 
-dist: msub.zip
+dist: menu.zip msub.zip
 
-msub.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_SUB)
-	rm -f msub.zip
-	zip -j msub.zip $^
+menu.zip msub.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_SUB) menu.lib menu.h
+	rm -f $@
+	zip -j $@ $^
 
 # --------------------------------------------------------------------
 # Utility
 # --------------------------------------------------------------------
 clean:
-	$(RM) cpmtest.img *.o *.h86 *.lst *.sym menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd msub.zip
+	$(RM) cpmtest.img *.o *.h86 *.lst *.sym menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd tstapmnu.cmd menu.lib menu.zip msub.zip
 
 test-local:
 	python3 tools/check.py
@@ -113,3 +115,13 @@ cpm86test: cpmtest.img
 	./cpm86
 
 menusub.o msub.o subretry.o: subretry.h
+
+menu.lib: menulib.o menukey.o
+	$(RM) $@
+	$(AR) $@ $^
+
+menu.o menulib.o tstapmnu.o: menu.h
+menulib.o: conio.h menukey.h
+
+tstapmnu.cmd: tstapmnu.o menu.lib util.lib
+	$(LD) -o $@ $^
