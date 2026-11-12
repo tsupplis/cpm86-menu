@@ -31,11 +31,15 @@ int bdos(int fn, ...);
 #include "../menusub.c"
 #include "../menuexe.c"
 #include "../menukey.c"
+#define main msub_main
+#include "../msub.c"
+#undef main
 
 char menu_title[MAX_TITLE+1] = "Test $ title";
 char menu_back[MAX_CMD+1] = "";
 int menu_title_fg = 14, menu_item_fg = 14, menu_quit_disabled, menu_has_snr;
 static int user, keys, alt, home, base, active = 1;
+static int fail_abort, retry_keys, raw_close_fail, raw_delete_fail, fail_alt_close, retry_user;
 static int fail_home_open, fail_home_append, fail_home_close, fail_restore;
 static int console_calls, string_calls, used;
 static unsigned char output[32768];
@@ -80,12 +84,28 @@ static void emit(int c)
     require(used < sizeof(output), "capture buffer capacity");
     output[used++] = (unsigned char)c;
 }
+/* Fixed-argument adapter for the separately linked recovery module. */
+int sub_retry_bdos(int fn, int dx)
+{
+    return bdos(fn, dx);
+}
+
 int bdos(int fn, ...)
 {
     va_list ap;
     char *fcb;
     int n;
     va_start(ap, fn);
+    if (fn == 6) {
+        n=va_arg(ap,int);va_end(ap);
+        if(n!=255) { emit(n);return 0; }
+        require(fail_restore || fail_abort, "waiting only after rollback failure");
+        if(retry_user>=0) require(user==retry_user,"retry remains in affected user area");
+        require(!exited && !chained, "no CCP handoff before recovery");
+        retry_keys++;
+        if(retry_keys==1) return 3;
+        fail_restore=fail_abort=0;return 'R';
+    }
     if (fn == 12) { va_end(ap); return version; }
     if (fn == 25) { va_end(ap); return drive; }
     if (fn == 14) { drive = va_arg(ap, int); event('D'); }
@@ -103,7 +123,7 @@ int bdos(int fn, ...)
         require(user == 4 && !memcmp(fcb + 1, "$$$     SUB", 11), "rollback addresses target stack");
         if (fn == 15) fcb[15] = (char)alt;
         else {
-            if (fail_restore) { va_end(ap); return 255; }
+            if (fail_restore || (fn==16 && raw_close_fail) || (fn==19 && raw_delete_fail)) { va_end(ap); return 255; }
             alt = fn == 19 ? 0 : (fcb[15] & 255);
         }
     }
@@ -165,10 +185,13 @@ int sub_append(char *s)
     if (user == 4) strcpy(alternate[alt++], s); else strcpy(home_records[home++], s);
     return 0;
 }
-int sub_close(void) { return !user && fail_home_close ? -1 : 0; }
-int sub_abort(void) { if (user == 4) alt = base; else home = base; return 0; }
+int sub_close(void) { return ((!user && fail_home_close) || (user==4 && fail_alt_close)) ? -1 : 0; }
+int sub_abort(void) { if(fail_abort)return -1; if (user == 4) alt = base; else home = base; return 0; }
 int sub_delete(void) { legacy_only(); if (user == 4) alt = 0; else home = 0; return 0; }
 int sub_load(char *s) { legacy_only(); return loaded_lines; }
+char *sub_line(int n) { return "ECHO TEST"; }
+int sub_lineno(int n) { return n+1; }
+int sub_errline(void) { return 0; }
 char *sub_name(void) { return ""; }
 char *sub_errmsg(int n) { return ""; }
 int sub_pushall(void) { legacy_only(); sub_append("SECOND"); sub_append("FIRST"); return 0; }
@@ -176,6 +199,7 @@ void sub_exit(void) { legacy_only(); exited++; }
 void p_chain(char *s, int n) { legacy_only(); chained++; chainmode = n; }
 static void setup(void)
 {
+    fail_abort=retry_keys=raw_close_fail=raw_delete_fail=fail_alt_close=0;retry_user=-1;
     menu_keys_init(0); missing_menu = 0;
     version = 0x22; system_type = 0x14;
     entry_type = MTYPE_E; entry_user = 4; entry_pause = 0;
@@ -231,6 +255,35 @@ int main(int argc, char **argv)
     setup(); fail_home_open = fail_restore = 1;
     menu_main(1, args);
     require(user == 0 && contains("Submit rollback failed"), "rollback failure reported after restoring home user");
+    require(retry_keys==2 && alt==1, "cross-user restore waits through Ctrl-C and retries");
+    setup();fail_home_append=1;fail_abort=1;
+    menu_main(1,args);
+    require(retry_keys==2 && user==0 && alt==1 && home==1,
+            "home rollback retries before returning or restoring alternate stack");
+    setup();fail_alt_close=fail_abort=1;retry_user=4;
+    menu_main(1,args);
+    require(retry_keys==2 && user==0 && alt==1 && home==1,
+            "alternate staging failure retries rollback in affected user before returning home");
+    /* Actual sub_abort implementation: both new-stack failure modes. */
+    setup();user=4;
+    require(lib_sub_open(SUB_CREATE)==0,"create stack for abort");
+    raw_close_fail=raw_delete_fail=1;alt=2;
+    require(lib_sub_abort()==-1 && alt==2,"failed delete reports surviving commands");
+    raw_delete_fail=0;
+    require(lib_sub_abort()==0 && alt==0,"successful delete makes close failure harmless");
+    raw_close_fail=0;require(lib_sub_open(SUB_CREATE)==0,"create another stack");
+    raw_delete_fail=1;_fcb[15]=2;alt=2;
+    require(lib_sub_abort()==-1 && alt==2,"close success does not hide delete failure");
+    raw_delete_fail=0;require(lib_sub_abort()==0,"abort can be retried");
+    user=0;
+    {
+        char *msub_args[2];
+        setup();loaded_lines=2;fail_home_close=fail_abort=1;
+        msub_args[0]="msub";msub_args[1]="job";
+        require(msub_main(2,msub_args)==1,"MSUB staging failure reported");
+        require(retry_keys==2 && home==1 && !exited && !chained,
+                "MSUB waits through failed rollback and restores stack before returning");
+    }
     puts("PASS: cross-user rollback, original records, new stack cleanup and rollback errors");
     legacy_success_tests();
     concurrent_tests();

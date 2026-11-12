@@ -9,8 +9,12 @@ import tempfile
 root = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix="menu-check-") as folder:
     binary = Path(folder) / "menutest"
+    subprocess.run([os.environ.get("CC_HOST", "cc"), "-std=gnu89",
+                    "-Dbdos=sub_retry_bdos", "-c", str(root / "subretry.c"),
+                    "-o", str(Path(folder) / "subretry.o")], check=True)
     subprocess.run([os.environ.get("CC_HOST", "cc"), "-std=gnu89", "-I" + str(root),
-                    str(root / "tests/menutest.c"), "-o", str(binary)], check=True)
+                    str(root / "tests/menutest.c"), str(Path(folder) / "subretry.o"),
+                    "-o", str(binary)], check=True)
     subprocess.run([str(binary)], cwd=folder, check=True)
     result = subprocess.run([str(binary), "screen.bin"], cwd=folder,
                             text=True, capture_output=True, check=True)

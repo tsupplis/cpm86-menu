@@ -22,7 +22,7 @@ typedef struct {
 
 /* Prepare validates/builds the action before the UI releases the screen.
    Run returns only on concurrent systems (or failed legacy handover).
-   No screen I/O is performed by either backend. */
+   Rollback failures use direct console I/O for repair/retry before returning. */
 char *menu_exec_init(menu_exec_t *ctx);
 char *menu_exec_prepare(menu_exec_t *ctx, menu_item_t *item, char *datfile, int sel);
 int menu_exec_run(menu_exec_t *ctx, menu_item_t *item);

@@ -16,11 +16,11 @@ all: menu.cmd msub.cmd hello.cmd mclean.cmd mcheck.cmd
 # --------------------------------------------------------------------
 MENU_OBJ = menu.o menudat.o menuexec.o menusub.o menuexe.o menukey.o
 
-menu.cmd: $(MENU_OBJ) util.lib
-	$(LD) -o $@ $(MENU_OBJ) util.lib
+menu.cmd: $(MENU_OBJ) subretry.o util.lib
+	$(LD) -o $@ $(MENU_OBJ) subretry.o util.lib
 
-msub.cmd: msub.o util.lib
-	$(LD) -o $@ msub.o util.lib
+msub.cmd: msub.o subretry.o util.lib
+	$(LD) -o $@ msub.o subretry.o util.lib
 
 hello.cmd: hello.o util.lib
 	$(LD) -o $@ hello.o util.lib
@@ -111,3 +111,5 @@ test: cpm86test
 
 cpm86test: cpmtest.img
 	./cpm86
+
+menusub.o msub.o subretry.o: subretry.h

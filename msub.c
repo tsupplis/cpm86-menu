@@ -14,6 +14,7 @@
  */
 #include "conio.h"
 #include "sub.h"
+#include "subretry.h"
 
 static void putnum(int n)
 {
@@ -183,7 +184,7 @@ int main(int argc, char **argv)
     opened = (sub_open(sub_active() == 1 ? SUB_APPEND : SUB_CREATE) == 0);
     if (!opened || sub_pushall() != 0 || sub_close() != 0) {
         if (opened)
-            sub_abort();
+            while (sub_abort() != 0) sub_retry_wait();
         cputs("ERROR: Cannot write $$$.SUB\r\n");
         return 1;
     }

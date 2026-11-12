@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "util.h"
 #include "sub.h"
+#include "subretry.h"
 #include "menuexec.h"
 
 /*
@@ -75,7 +76,6 @@ char *menusub_prepare(menu_exec_t *ctx, menu_item_t *item, char *datfile, int se
     int n;
     int bad;
     int opened;
-    int rollbackbad;
     int home;       /* user area MENU runs in */
     int hop;        /* run the entry in user area item->user */
     int altbefore;  /* records already in $$$.SUB of user n */
@@ -140,7 +140,7 @@ char *menusub_prepare(menu_exec_t *ctx, menu_item_t *item, char *datfile, int se
         if (!bad)
             bad = (sub_close() != 0);
         if (bad && opened)
-            sub_abort();     /* before leaving user n */
+            while (sub_abort() != 0) sub_retry_wait(); /* stay in user n */
         bdos(32, home);
         if (bad) {
             return "Cannot write $$$.SUB in user area";
@@ -168,15 +168,15 @@ char *menusub_prepare(menu_exec_t *ctx, menu_item_t *item, char *datfile, int se
     if (!bad)
         bad = (sub_close() != 0);
     if (bad) {
-        rollbackbad = opened && sub_abort() != 0;
+        if (opened)
+            while (sub_abort() != 0) sub_retry_wait();
         if (hop) {
             bdos(32, item->user);
-            if (sub_restore(ctx->subact == 1 ? altbefore : 0) != 0)
-                rollbackbad = 1;
+            while (sub_restore(ctx->subact == 1 ? altbefore : 0) != 0)
+                sub_retry_wait();
             bdos(32, home);
         }
-        return rollbackbad ? "Submit rollback failed; inspect both stacks" :
-                             "Cannot write $$$.SUB";
+        return "Cannot write $$$.SUB";
     }
     return 0;
 }
